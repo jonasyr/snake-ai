@@ -16,6 +16,10 @@ export default function App() {
   const [showShortcuts, setShowShortcuts] = useState(true);
   const [gameOver, setGameOver] = useState(false);
   
+  // Refs for visualization states so they're always current in the animation loop
+  const showCycleRef = useRef(true);
+  const showShortcutsRef = useRef(true);
+  
   const cellPx = 24;
   const lateGameLockK = 4;
   const buffer = 2;
@@ -145,10 +149,10 @@ export default function App() {
       return;
     }
 
-    const windowSize = Math.max(0, dist(headIdx, tailIdx) - buffer);
+    const windowSize = Math.max(0, dist(headIdx, tailIdx) - (snake.length <= 3 ? 0 : buffer));
     const freeCells = L - snake.length;
-    // Allow shortcuts when we have sufficient window and either enough free cells OR early in game
-    const shortcutsAllowed = windowSize > 2 && (freeCells > lateGameLockK || snake.length < L * 0.5);
+    // Allow shortcuts when we have sufficient window, be more permissive early game
+    const shortcutsAllowed = windowSize > 1 && (freeCells > lateGameLockK || snake.length <= 5);
 
     let bestCandidate = null;
     let bestRefDist = dist(nextHeadIdx, appleIdx);
@@ -271,7 +275,7 @@ export default function App() {
     ctx.restore();
 
     // Hamiltonian cycle flow (animated)
-    if (showCycle) {
+    if (showCycleRef.current) {
       ctx.save();
       ctx.scale(DPR, DPR);
       const time = performance.now() / 3000;
@@ -300,7 +304,7 @@ export default function App() {
     const appleIdx = appleRef.current;
 
     // Planned path with animated gradient
-    if (showShortcuts && planned.length) {
+    if (showShortcutsRef.current && planned.length) {
       ctx.save();
       ctx.scale(DPR, DPR);
       const time = performance.now() / 2000;
@@ -464,7 +468,21 @@ export default function App() {
 
     rafRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [rows, cols, tickMs, running, showCycle, showShortcuts]);
+  }, [rows, cols, tickMs, running]);
+
+  // Redraw when visualization toggles change
+  useEffect(() => {
+    draw();
+  }, [showCycle, showShortcuts]);
+  
+  // Keep refs in sync with state for real-time updates
+  useEffect(() => {
+    showCycleRef.current = showCycle;
+  }, [showCycle]);
+  
+  useEffect(() => {
+    showShortcutsRef.current = showShortcuts;
+  }, [showShortcuts]);
 
   // -------------------- Effects & Controls --------------------
   useEffect(() => {
@@ -554,7 +572,7 @@ export default function App() {
             {/* Controls */}
             <div className="flex flex-wrap items-center gap-3 mb-6 bg-black/20 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
               <ControlButton 
-                onClick={() => gameOver ? resetGame() : setRunning(!running)} 
+                onClick={() => gameOver ? resetGame() : setRunning((r) => !r)} 
                 variant="primary"
               >
                 {gameOver ? (
@@ -586,14 +604,14 @@ export default function App() {
                   active={showCycle}
                   variant="secondary"
                 >
-                  Cycle
+                  Ham Cycle
                 </ControlButton>
                 <ControlButton 
                   onClick={() => setShowShortcuts(!showShortcuts)} 
                   active={showShortcuts}
                   variant="secondary"
                 >
-                  Path
+                  Shortcuts
                 </ControlButton>
               </div>
 
