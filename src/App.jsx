@@ -13,7 +13,7 @@ export default function App() {
   const [running, setRunning] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showCycle, setShowCycle] = useState(true);
-  const [showPlan, setShowPlan] = useState(true);
+  const [showShortcuts, setShowShortcuts] = useState(true);
   const [gameOver, setGameOver] = useState(false);
   
   const cellPx = 24;
@@ -147,10 +147,8 @@ export default function App() {
 
     const windowSize = Math.max(0, dist(headIdx, tailIdx) - buffer);
     const freeCells = L - snake.length;
-    // Allow shortcuts from the beginning, but with more restrictive conditions for early game
-    const shortcutsAllowed = snake.length === 1 ? 
-      windowSize > 1 : // Early game: simpler condition
-      freeCells > lateGameLockK && windowSize > 2; // Late game: stricter conditions
+    // Allow shortcuts when we have sufficient window and either enough free cells OR early in game
+    const shortcutsAllowed = windowSize > 2 && (freeCells > lateGameLockK || snake.length < L * 0.5);
 
     let bestCandidate = null;
     let bestRefDist = dist(nextHeadIdx, appleIdx);
@@ -302,7 +300,7 @@ export default function App() {
     const appleIdx = appleRef.current;
 
     // Planned path with animated gradient
-    if (showPlan && planned.length) {
+    if (showShortcuts && planned.length) {
       ctx.save();
       ctx.scale(DPR, DPR);
       const time = performance.now() / 2000;
@@ -466,7 +464,7 @@ export default function App() {
 
     rafRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [rows, cols, tickMs, running]);
+  }, [rows, cols, tickMs, running, showCycle, showShortcuts]);
 
   // -------------------- Effects & Controls --------------------
   useEffect(() => {
@@ -591,8 +589,8 @@ export default function App() {
                   Cycle
                 </ControlButton>
                 <ControlButton 
-                  onClick={() => setShowPlan(!showPlan)} 
-                  active={showPlan}
+                  onClick={() => setShowShortcuts(!showShortcuts)} 
+                  active={showShortcuts}
                   variant="secondary"
                 >
                   Path
