@@ -12,12 +12,13 @@ export default function App() {
   const [tickMs, setTickMs] = useState(100);
   const [running, setRunning] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showCycle, setShowCycle] = useState(true);
+  const [showPlan, setShowPlan] = useState(true);
+  const [gameOver, setGameOver] = useState(false);
   
   const cellPx = 24;
   const lateGameLockK = 4;
   const buffer = 2;
-  const showCycle = true;
-  const showPlan = true;
 
   // -------------------- Geometry & Cycle --------------------
   const L = rows * cols;
@@ -85,6 +86,7 @@ export default function App() {
     movesRef.current = 0;
     lastShortcutRef.current = false;
     scoreRef.current = 0;
+    setGameOver(false);
     
     updateUIStats(startIdx, startIdx, false, 0);
   }
@@ -126,6 +128,8 @@ export default function App() {
   };
 
   function stepOnce() {
+    if (gameOver) return;
+    
     const snake = snakeRef.current;
     const occ = occRef.current;
     const appleIdx = appleRef.current;
@@ -134,9 +138,19 @@ export default function App() {
     const tailIdx = snake[snake.length - 1];
     const nextHeadIdx = nextIdx(headIdx);
 
+    // Check if the game is complete (all cells filled)
+    if (snake.length === L) {
+      setGameOver(true);
+      setRunning(false);
+      return;
+    }
+
     const windowSize = Math.max(0, dist(headIdx, tailIdx) - buffer);
     const freeCells = L - snake.length;
-    const shortcutsAllowed = freeCells > lateGameLockK && windowSize > 2;
+    // Allow shortcuts from the beginning, but with more restrictive conditions for early game
+    const shortcutsAllowed = snake.length === 1 ? 
+      windowSize > 1 : // Early game: simpler condition
+      freeCells > lateGameLockK && windowSize > 2; // Late game: stricter conditions
 
     let bestCandidate = null;
     let bestRefDist = dist(nextHeadIdx, appleIdx);
@@ -171,6 +185,20 @@ export default function App() {
       targetIdx = bestCandidate.cycleIdx;
       targetCell = bestCandidate.cellId;
       usedShortcut = true;
+    }
+
+    // Check for collision with self (excluding tail that will move)
+    if (occ[targetIdx] === 1 && targetIdx !== tailIdx) {
+      setGameOver(true);
+      setRunning(false);
+      return;
+    }
+
+    // Check if the target cell would cause the snake to hit itself when not eating
+    if (targetIdx !== appleIdx && occ[targetIdx] === 1 && targetIdx !== tailIdx) {
+      setGameOver(true);
+      setRunning(false);
+      return;
     }
 
     const plan = [];
@@ -428,7 +456,7 @@ export default function App() {
       lastRef.current = time;
       accRef.current += dt;
 
-      while (running && accRef.current >= tickMs) {
+      while (running && !gameOver && accRef.current >= tickMs) {
         stepOnce();
         accRef.current -= tickMs;
       }
@@ -450,6 +478,7 @@ export default function App() {
   }
 
   function stepButton() {
+    if (gameOver) return;
     setRunning(false);
     stepOnce();
     draw();
@@ -527,11 +556,20 @@ export default function App() {
             {/* Controls */}
             <div className="flex flex-wrap items-center gap-3 mb-6 bg-black/20 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
               <ControlButton 
-                onClick={() => setRunning(!running)} 
+                onClick={() => gameOver ? resetGame() : setRunning(!running)} 
                 variant="primary"
               >
-                {running ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                {running ? "Pause" : "Play"}
+                {gameOver ? (
+                  <>
+                    <RotateCcw className="w-4 h-4" />
+                    Game Over - Restart
+                  </>
+                ) : (
+                  <>
+                    {running ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                    {running ? "Pause" : "Play"}
+                  </>
+                )}
               </ControlButton>
               
               <ControlButton onClick={stepButton}>
@@ -544,9 +582,27 @@ export default function App() {
                 Reset
               </ControlButton>
 
+              <div className="border-l border-white/20 pl-4 ml-4 flex gap-2">
+                <ControlButton 
+                  onClick={() => setShowCycle(!showCycle)} 
+                  active={showCycle}
+                  variant="secondary"
+                >
+                  Cycle
+                </ControlButton>
+                <ControlButton 
+                  onClick={() => setShowPlan(!showPlan)} 
+                  active={showPlan}
+                  variant="secondary"
+                >
+                  Path
+                </ControlButton>
+              </div>
+
               <div className="flex items-center gap-3 ml-6">
-                <label className="text-sm text-gray-300">Speed</label>
+                <label htmlFor="speed-slider" className="text-sm text-gray-300">Speed</label>
                 <input
+                  id="speed-slider"
                   type="range"
                   min={20}
                   max={200}
@@ -570,6 +626,19 @@ export default function App() {
                     imageRendering: 'pixelated',
                   }}
                 />
+                {gameOver && (
+                  <div className="absolute inset-0 bg-black/60 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                    <div className="text-center">
+                      <h2 className="text-3xl font-bold text-red-400 mb-2">Game Over!</h2>
+                      <p className="text-gray-300 mb-4">
+                        {snakeRef.current.length === L ? 'Perfect! You filled the entire grid!' : 'Snake collided with itself'}
+                      </p>
+                      <p className="text-sm text-gray-400">
+                        Final Score: {scoreRef.current} | Length: {snakeRef.current.length}/{L}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -642,6 +711,15 @@ export default function App() {
                   <span className="text-gray-300">Using Shortcut</span>
                   <div className={`w-3 h-3 rounded-full ${uiStats.shortcut ? 'bg-yellow-400 animate-pulse' : 'bg-gray-600'}`}></div>
                 </div>
+                <div className="flex justify-between items-center p-3 bg-white/5 rounded-xl">
+                  <span className="text-gray-300">Game Status</span>
+                  <span className={`font-semibold ${
+                    gameOver ? 'text-red-400' : 
+                    running ? 'text-green-400' : 'text-yellow-400'
+                  }`}>
+                    {gameOver ? 'Game Over' : running ? 'Running' : 'Paused'}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -651,10 +729,11 @@ export default function App() {
                 <h3 className="text-xl font-semibold mb-4">Game Settings</h3>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label htmlFor="grid-size" className="block text-sm font-medium text-gray-300 mb-2">
                       Grid Size
                     </label>
                     <select
+                      id="grid-size"
                       className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-white"
                       value={`${rows}x${cols}`}
                       onChange={(e) => {
