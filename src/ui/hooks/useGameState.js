@@ -19,13 +19,21 @@ export function useGameState() {
 
   const gameLoopRef = useRef(null);
 
-  // Initialize game loop
+  // Initialize game loop only once or when settings change
   useEffect(() => {
+    // Stop existing loop
+    if (gameLoopRef.current) {
+      gameLoopRef.current.stop();
+    }
+
     const loop = new GameLoop(
       gameState,
       newState => {
         setGameState(newState);
-        setStats(loop.getStats());
+        
+        // Get stats from the loop itself to avoid stale closure
+        const currentStats = loop.getStats();
+        setStats(currentStats);
 
         // Update high score if game ended
         if (newState.status === 'gameOver' || newState.status === 'complete') {
@@ -37,41 +45,55 @@ export function useGameState() {
 
     gameLoopRef.current = loop;
 
-    return () => loop.stop();
-  }, [gameState, settings]);
+    return () => {
+      if (gameLoopRef.current) {
+        gameLoopRef.current.stop();
+      }
+    };
+  }, [settings]); // ✅ Only recreate when settings change, not gameState
+
+  // Update game loop settings when they change
+  useEffect(() => {
+    if (gameLoopRef.current) {
+      gameLoopRef.current.setTickInterval(settings.tickMs);
+    }
+  }, [settings.tickMs]);
 
   // Update settings
-  const updateSettings = useCallback(
-    newSettings => {
-      const updatedSettings = { ...settings, ...newSettings };
-      setSettings(updatedSettings);
+  const updateSettings = useCallback(newSettings => {
+    setSettings(prevSettings => {
+      const updatedSettings = { ...prevSettings, ...newSettings };
       saveSettings(updatedSettings);
-
-      if (gameLoopRef.current) {
-        gameLoopRef.current.setTickInterval(updatedSettings.tickMs);
-      }
-    },
-    [settings]
-  );
+      return updatedSettings;
+    });
+  }, []);
 
   // Game control functions
   const startGame = useCallback(() => {
-    gameLoopRef.current?.start();
+    if (gameLoopRef.current) {
+      gameLoopRef.current.start();
+    }
   }, []);
 
   const pauseGame = useCallback(() => {
-    gameLoopRef.current?.pause();
+    if (gameLoopRef.current) {
+      gameLoopRef.current.pause();
+    }
   }, []);
 
   const stepGame = useCallback(() => {
-    gameLoopRef.current?.step();
+    if (gameLoopRef.current) {
+      gameLoopRef.current.step();
+    }
   }, []);
 
   const resetGameState = useCallback(() => {
     seed(settings.seed);
     const newState = resetGame(settings);
     setGameState(newState);
-    gameLoopRef.current?.reset(newState);
+    if (gameLoopRef.current) {
+      gameLoopRef.current.reset(newState);
+    }
   }, [settings]);
 
   const toggleGame = useCallback(() => {

@@ -17,7 +17,7 @@ import { DEFAULT_CONFIG } from '../utils/constants.js';
  * @returns {Object} Initial game state
  */
 export function initializeGame(config = DEFAULT_CONFIG) {
-  const { rows, cols, seed } = { ...DEFAULT_CONFIG, ...config };
+  const { rows, cols, seed, ...otherConfig } = { ...DEFAULT_CONFIG, ...config };
 
   // Generate Hamiltonian cycle
   const hamiltonianData = generateHamiltonianCycle(rows, cols);
@@ -27,10 +27,10 @@ export function initializeGame(config = DEFAULT_CONFIG) {
   const snake = createSnake(startCell);
 
   // Spawn initial fruit
-  const fruit = spawnFruit(snake.occupied, hamiltonianData.length);
+  const fruit = spawnFruit(snake.occupied, hamiltonianData.cycle.length);
 
   return {
-    config: { rows, cols, seed, ...config },
+    config: { rows, cols, seed, ...otherConfig },
     snake,
     fruit,
     cycle: hamiltonianData.cycle,
@@ -106,13 +106,14 @@ export function gameTick(gameState) {
   // Handle fruit consumption
   if (willEat) {
     const newFruit = spawnFruit(newSnake.occupied, gameState.cycle.length);
+    const config = gameState.config || DEFAULT_CONFIG;
     newState = {
       ...newState,
       fruit: newFruit,
       score:
         gameState.score +
-        DEFAULT_CONFIG.SCORE_PER_FRUIT +
-        (pathPlan.isShortcut ? DEFAULT_CONFIG.SHORTCUT_BONUS : 0),
+        (config.scorePerfruit || 10) +
+        (pathPlan.isShortcut ? (config.shortcutBonus || 5) : 0),
     };
 
     // Check if game complete after eating

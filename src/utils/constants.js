@@ -4,6 +4,21 @@
  */
 
 export const DEFAULT_CONFIG = {
+  rows: 20,                    // ✅ Lowercase to match usage
+  cols: 20,                    // ✅ Lowercase to match usage
+  tickMs: 100,                 // ✅ Lowercase to match usage
+  seed: Date.now(),            // ✅ Add missing seed
+  shortcutsEnabled: true,      // ✅ Add missing property
+  safetyBuffer: 2,            // ✅ Add missing property
+  lateGameLock: 4,            // ✅ Add missing property
+  minShortcutWindow: 2,       // ✅ Add missing property
+  scorePerfruit: 10,          // ✅ Add missing property
+  shortcutBonus: 5,           // ✅ Add missing property
+  cellSize: 24,               // ✅ Add missing property
+};
+
+// Keep uppercase versions for internal engine constants
+export const ENGINE_CONSTANTS = {
   ROWS: 20,
   COLS: 20,
   TICK_MS: 100,

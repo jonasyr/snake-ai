@@ -13,7 +13,7 @@ export function useCanvas(gameState, settings) {
   const dprRef = useRef(1);
 
   const { rows, cols } = settings;
-  const cellSize = DEFAULT_CONFIG.CELL_SIZE;
+  const cellSize = DEFAULT_CONFIG.cellSize || 24;
 
   // Setup canvas
   useEffect(() => {
