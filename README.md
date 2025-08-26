@@ -1,12 +1,33 @@
-# React + Vite
+<!-- FILE: README.md -->
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+# Snake AI - Hamiltonian Cycle with Smart Shortcuts
 
-Currently, two official plugins are available:
+A modern, highly optimized Snake game featuring autonomous AI that uses Hamiltonian cycle pathfinding with intelligent shortcuts. Built with React and a pure functional game engine.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+![Snake AI Demo](docs/demo.gif)
 
-## Expanding the ESLint configuration
+## ✨ Features
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- **Autonomous AI Snake** - Never fails using Hamiltonian cycle algorithm
+- **Smart Shortcuts** - AI takes safe shortcuts to reach fruit faster
+- **Deterministic Gameplay** - Seeded RNG for reproducible games
+- **High Performance** - 60+ FPS with Web Workers for pathfinding
+- **Modern Architecture** - Clean separation between engine and UI
+- **Comprehensive Testing** - Unit, integration, and property-based tests
+- **Visual Customization** - Toggle cycle visualization and shortcuts
+
+## 🚀 Quick Start
+
+```bash
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Run tests
+npm test
+
+# Build for production
+npm run build
+```
