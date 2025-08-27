@@ -5,10 +5,10 @@ import { useGameState } from './ui/hooks/useGameState.js';
 import { useCanvas } from './ui/hooks/useCanvas.js';
 
 // UI Components
-const StatCard = ({ label, value, icon: Icon, color = 'blue', subtitle }) => (
+const StatCard = ({ label, value, icon: IconComponent, color = 'blue', subtitle }) => (
   <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4 hover:bg-white/10 transition-all duration-300">
     <div className="flex items-center justify-between mb-2">
-      <Icon className={`w-5 h-5 text-${color}-400`} />
+      <IconComponent className={`w-5 h-5 text-${color}-400`} />
       <span className={`text-2xl font-bold text-${color}-400`}>{value}</span>
     </div>
     <p className="text-sm text-gray-300 font-medium">{label}</p>
@@ -24,18 +24,18 @@ StatCard.propTypes = {
   subtitle: PropTypes.string,
 };
 
-const ControlButton = ({ onClick, children, variant = 'secondary', active = false }) => {
+const ControlButton = ({ onClick, children, variant = 'secondary', active = false, disabled = false }) => {
   const baseClasses =
-    'flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all duration-200';
+    'flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed';
   const variants = {
     primary:
-      'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg hover:shadow-xl hover:scale-105',
+      'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg hover:shadow-xl hover:scale-105 disabled:hover:scale-100',
     secondary: `${active ? 'bg-white/20' : 'bg-white/10'} text-white border border-white/20 hover:bg-white/20 hover:border-white/30`,
     danger: 'bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30',
   };
 
   return (
-    <button onClick={onClick} className={`${baseClasses} ${variants[variant]}`}>
+    <button onClick={onClick} disabled={disabled} className={`${baseClasses} ${variants[variant]}`}>
       {children}
     </button>
   );
@@ -46,6 +46,7 @@ ControlButton.propTypes = {
   children: PropTypes.node.isRequired,
   variant: PropTypes.oneOf(['primary', 'secondary', 'danger']),
   active: PropTypes.bool,
+  disabled: PropTypes.bool,
 };
 
 // Main App Component
@@ -58,6 +59,7 @@ export default function App() {
   const [showCycle, setShowCycle] = useState(true);
   const [showShortcuts, setShowShortcuts] = useState(true);
 
+  // ✅ All hooks must be called before any early returns
   // Keyboard controls
   useEffect(() => {
     const handleKeyPress = e => {
@@ -85,8 +87,22 @@ export default function App() {
 
   // Redraw when visualization options change
   useEffect(() => {
-    draw();
+    if (draw) {
+      draw({ showCycle, showShortcuts });
+    }
   }, [draw, showCycle, showShortcuts]);
+
+  // ✅ NOW we can do conditional rendering after all hooks
+  if (!gameState) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-gray-300">Initializing Snake AI...</p>
+        </div>
+      </div>
+    );
+  }
 
   const isGameOver = gameState.status === 'gameOver' || gameState.status === 'complete';
   const isPlaying = gameState.status === 'playing';
@@ -118,7 +134,7 @@ export default function App() {
           <div className="flex flex-col items-center">
             {/* Controls */}
             <div className="flex flex-wrap items-center gap-3 mb-6 bg-black/20 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
-              <ControlButton onClick={toggleGame} variant="primary">
+              <ControlButton onClick={toggleGame} variant="primary" disabled={!gameState}>
                 {isGameOver ? (
                   <>
                     <RotateCcw className="w-4 h-4" />
@@ -132,12 +148,12 @@ export default function App() {
                 )}
               </ControlButton>
 
-              <ControlButton onClick={stepGame}>
+              <ControlButton onClick={stepGame} disabled={!gameState || isPlaying || isGameOver}>
                 <SkipForward className="w-4 h-4" />
                 Step
               </ControlButton>
 
-              <ControlButton onClick={resetGameState} variant="danger">
+              <ControlButton onClick={resetGameState} variant="danger" disabled={!gameState}>
                 <RotateCcw className="w-4 h-4" />
                 Reset
               </ControlButton>
@@ -197,7 +213,7 @@ export default function App() {
                           ? 'You filled the entire grid!'
                           : 'Snake collided with itself'}
                       </p>
-                      <p className="text-sm text-gray-400">Final Score: {stats.score}</p>
+                      <p className="text-sm text-gray-400">Final Score: {stats.score || 0}</p>
                     </div>
                   </div>
                 )}
@@ -224,18 +240,18 @@ export default function App() {
                 Performance
               </h3>
               <div className="grid grid-cols-2 gap-4">
-                <StatCard label="Score" value={stats.score} icon={Zap} color="yellow" />
-                <StatCard label="Moves" value={stats.moves} icon={Info} color="blue" />
+                <StatCard label="Score" value={stats.score || 0} icon={Zap} color="yellow" />
+                <StatCard label="Moves" value={stats.moves || 0} icon={Info} color="blue" />
                 <StatCard
                   label="Length"
-                  value={stats.length}
+                  value={stats.length || 1}
                   icon={Info}
                   color="green"
-                  subtitle={`${Math.round((stats.length / 400) * 100)}% filled`}
+                  subtitle={`${Math.round(((stats.length || 1) / (gameState?.cycle?.length || 400)) * 100)}% filled`}
                 />
                 <StatCard
                   label="Efficiency"
-                  value={`${stats.efficiency}%`}
+                  value={`${stats.efficiency || 0}%`}
                   icon={Info}
                   color="purple"
                   subtitle="Score per move"
@@ -249,21 +265,25 @@ export default function App() {
               <div className="space-y-4">
                 <div className="flex justify-between items-center p-3 bg-white/5 rounded-xl">
                   <span className="text-gray-300">Head → Apple</span>
-                  <span className="font-mono text-cyan-400">{stats.distHeadApple}</span>
+                  <span className="font-mono text-cyan-400">{stats.distHeadApple || 0}</span>
                 </div>
                 <div className="flex justify-between items-center p-3 bg-white/5 rounded-xl">
                   <span className="text-gray-300">Head → Tail</span>
-                  <span className="font-mono text-green-400">{stats.distHeadTail}</span>
+                  <span className="font-mono text-green-400">{stats.distHeadTail || 0}</span>
                 </div>
                 <div className="flex justify-between items-center p-3 bg-white/5 rounded-xl">
                   <span className="text-gray-300">Free Cells</span>
-                  <span className="font-mono text-blue-400">{stats.free}</span>
+                  <span className="font-mono text-blue-400">{stats.free || 0}</span>
                 </div>
                 <div className="flex justify-between items-center p-3 bg-white/5 rounded-xl">
                   <span className="text-gray-300">Using Shortcut</span>
                   <div
                     className={`w-3 h-3 rounded-full ${stats.shortcut ? 'bg-yellow-400 animate-pulse' : 'bg-gray-600'}`}
                   ></div>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-white/5 rounded-xl">
+                  <span className="text-gray-300">Status</span>
+                  <span className="font-semibold text-blue-400 capitalize">{gameState?.status || 'Loading'}</span>
                 </div>
               </div>
             </div>
@@ -294,6 +314,23 @@ export default function App() {
                       <option value="24x24">24×24 (Large)</option>
                       <option value="30x20">30×20 (Wide)</option>
                     </select>
+                  </div>
+                  
+                  <div>
+                    <label className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={settings.shortcutsEnabled !== false}
+                        onChange={e =>
+                          updateSettings({
+                            ...settings,
+                            shortcutsEnabled: e.target.checked,
+                          })
+                        }
+                        className="w-4 h-4 text-blue-600 bg-white/10 border-white/20 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-300">Enable Smart Shortcuts</span>
+                    </label>
                   </div>
                 </div>
               </div>

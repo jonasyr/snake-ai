@@ -1,6 +1,6 @@
 // FILE: src/game/gameLoop.js
 /**
- * Frame-locked game loop with worker integration
+ * Frame-locked game loop with worker integration - FIXED VERSION
  */
 
 import { gameTick, setGameStatus, getGameStats } from '../engine/gameEngine.js';
@@ -8,7 +8,7 @@ import { GAME_STATUS } from '../engine/types.js';
 
 export class GameLoop {
   constructor(initialState, onStateChange, config = {}) {
-    this.state = initialState;
+    this.state = { ...initialState }; // ✅ Create a copy to avoid mutations
     this.onStateChange = onStateChange;
     this.config = config;
 
@@ -28,6 +28,9 @@ export class GameLoop {
     // Bind methods
     this.tick = this.tick.bind(this);
     this.render = this.render.bind(this);
+
+    // ✅ Immediate state notification
+    this.onStateChange(this.state);
   }
 
   /**
@@ -43,6 +46,7 @@ export class GameLoop {
     this.lastTick = performance.now();
     this.accumulator = 0;
 
+    // ✅ Notify state change immediately
     this.onStateChange(this.state);
 
     if (!this.rafId) {
@@ -114,10 +118,24 @@ export class GameLoop {
     this.lastTick = currentTime;
     this.accumulator += deltaTime;
 
-    // Fixed timestep with accumulator
+    let stateChanged = false;
+
+    // ✅ Fixed timestep with accumulator - process multiple ticks if needed
     while (this.accumulator >= this.tickInterval) {
+      if (this.state.status !== GAME_STATUS.PLAYING) {
+        break;
+      }
+
       const result = gameTick(this.state);
+      
+      if (!result.result.valid) {
+        console.warn('Invalid game tick result:', result.result.reason);
+        this.running = false;
+        break;
+      }
+
       this.state = result.state;
+      stateChanged = true;
 
       // Stop if game ended
       if (
@@ -125,13 +143,16 @@ export class GameLoop {
         this.state.status === GAME_STATUS.COMPLETE
       ) {
         this.running = false;
+        break;
       }
 
       this.accumulator -= this.tickInterval;
     }
 
-    // Notify state change
-    this.onStateChange(this.state);
+    // ✅ Only notify state change if state actually changed
+    if (stateChanged) {
+      this.onStateChange(this.state);
+    }
   }
 
   /**
@@ -153,9 +174,17 @@ export class GameLoop {
    * Reset to new state
    */
   reset(newState) {
-    this.state = newState;
+    this.state = { ...newState }; // ✅ Create a copy
     this.running = false;
     this.accumulator = 0;
+    this.lastTick = performance.now();
+    
+    // ✅ Stop any running animation frame
+    if (this.rafId) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
+    
     this.onStateChange(this.state);
   }
 }
