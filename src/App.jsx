@@ -5,10 +5,10 @@ import { useGameState } from './ui/hooks/useGameState.js';
 import { useCanvas } from './ui/hooks/useCanvas.js';
 
 // UI Components
-const StatCard = ({ label, value, icon: IconComponent, color = 'blue', subtitle }) => (
+const StatCard = ({ label, value, icon: Icon, color = 'blue', subtitle }) => (
   <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4 hover:bg-white/10 transition-all duration-300">
     <div className="flex items-center justify-between mb-2">
-      <IconComponent className={`w-5 h-5 text-${color}-400`} />
+      <Icon className={`w-5 h-5 text-${color}-400`} />
       <span className={`text-2xl font-bold text-${color}-400`}>{value}</span>
     </div>
     <p className="text-sm text-gray-300 font-medium">{label}</p>
@@ -199,8 +199,10 @@ export default function App() {
               <div className="relative bg-black/40 backdrop-blur-xl border border-white/10 rounded-3xl p-4 shadow-2xl">
                 <canvas
                   ref={canvasRef}
-                  className="block rounded-2xl"
-                  style={{ imageRendering: 'pixelated' }}
+                  className="block rounded-2xl bg-slate-800"
+                  style={{ 
+                    imageRendering: 'pixelated'
+                  }}
                 />
                 {isGameOver && (
                   <div className="absolute inset-0 bg-black/60 backdrop-blur-sm rounded-2xl flex items-center justify-center">

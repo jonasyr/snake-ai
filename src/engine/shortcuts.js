@@ -15,7 +15,15 @@ export function findShortcut(gameState, config) {
   const { snake, fruit, cycle, cycleIndex } = gameState;
   const { safetyBuffer = 2, lateGameLock = 4 } = config;
 
-  if (!snake.body || snake.body.length === 0) return null;
+  if (!snake?.body || snake.body.length === 0 || !cycle || !cycleIndex) {
+    return null;
+  }
+
+  // Check if cycleIndex is a Map
+  if (typeof cycleIndex.get !== 'function') {
+    console.warn('cycleIndex is not a Map:', typeof cycleIndex);
+    return null;
+  }
 
   const headCell = snake.body[0];
   const tailCell = snake.body[snake.body.length - 1];
@@ -136,6 +144,13 @@ export function validateShortcut(fromCell, toCell, gameState, config) {
   const { cycle, cycleIndex } = gameState;
   const { safetyBuffer = 2 } = config;
 
+  if (!cycle || !cycleIndex || typeof cycleIndex.get !== 'function') {
+    return {
+      valid: false,
+      reason: 'Invalid cycle data',
+    };
+  }
+
   const fromPos = cycleIndex.get(fromCell);
   const toPos = cycleIndex.get(toCell);
 
@@ -181,6 +196,16 @@ export function validateShortcut(fromCell, toCell, gameState, config) {
  * @returns {Object} Path planning result
  */
 export function planPath(gameState, config) {
+  if (!gameState?.snake?.body || gameState.snake.body.length === 0) {
+    console.warn('Invalid game state for path planning');
+    return {
+      nextMove: 0,
+      isShortcut: false,
+      reason: 'Invalid state',
+      shortcutInfo: null,
+    };
+  }
+
   // ✅ Only try shortcuts if enabled in config
   const shortcutsEnabled = config?.shortcutsEnabled !== false;
   
@@ -204,13 +229,24 @@ export function planPath(gameState, config) {
 
   // Follow Hamiltonian cycle
   const headCell = gameState.snake.body[0];
+  
+  if (!gameState.cycleIndex || typeof gameState.cycleIndex.get !== 'function') {
+    console.warn('Invalid cycleIndex in game state');
+    return {
+      nextMove: (headCell + 1) % (gameState.cycle?.length || 400),
+      isShortcut: false,
+      reason: 'Fallback move - invalid cycle index',
+      shortcutInfo: null,
+    };
+  }
+  
   const headPos = gameState.cycleIndex.get(headCell);
   
   if (headPos === undefined) {
     // Fallback - this shouldn't happen
     console.warn('Head not found in cycle, using fallback');
     return {
-      nextMove: gameState.cycle[0],
+      nextMove: gameState.cycle?.[0] || 0,
       isShortcut: false,
       reason: 'Fallback move',
       shortcutInfo: null,

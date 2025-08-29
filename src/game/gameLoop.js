@@ -8,7 +8,8 @@ import { GAME_STATUS } from '../engine/types.js';
 
 export class GameLoop {
   constructor(initialState, onStateChange, config = {}) {
-    this.state = { ...initialState }; // ✅ Create a copy to avoid mutations
+    // ✅ Don't deep copy - just reference the original state
+    this.state = initialState;
     this.onStateChange = onStateChange;
     this.config = config;
 
@@ -29,8 +30,8 @@ export class GameLoop {
     this.tick = this.tick.bind(this);
     this.render = this.render.bind(this);
 
-    // ✅ Immediate state notification
-    this.onStateChange(this.state);
+    // Initialize without triggering state change
+    this.initialized = false;
   }
 
   /**
@@ -46,8 +47,10 @@ export class GameLoop {
     this.lastTick = performance.now();
     this.accumulator = 0;
 
-    // ✅ Notify state change immediately
-    this.onStateChange(this.state);
+    // Notify state change
+    if (this.onStateChange) {
+      this.onStateChange(this.state);
+    }
 
     if (!this.rafId) {
       this.rafId = requestAnimationFrame(this.render);
@@ -60,7 +63,10 @@ export class GameLoop {
   pause() {
     this.state = setGameStatus(this.state, GAME_STATUS.PAUSED);
     this.running = false;
-    this.onStateChange(this.state);
+    
+    if (this.onStateChange) {
+      this.onStateChange(this.state);
+    }
   }
 
   /**
@@ -88,8 +94,12 @@ export class GameLoop {
     }
 
     const result = gameTick(this.state);
-    this.state = result.state;
-    this.onStateChange(this.state);
+    if (result.result.valid) {
+      this.state = result.state;
+      if (this.onStateChange) {
+        this.onStateChange(this.state);
+      }
+    }
 
     return result;
   }
@@ -119,9 +129,11 @@ export class GameLoop {
     this.accumulator += deltaTime;
 
     let stateChanged = false;
+    let tickCount = 0;
+    const maxTicksPerFrame = 5; // Prevent too many ticks in one frame
 
-    // ✅ Fixed timestep with accumulator - process multiple ticks if needed
-    while (this.accumulator >= this.tickInterval) {
+    // Fixed timestep with accumulator
+    while (this.accumulator >= this.tickInterval && tickCount < maxTicksPerFrame) {
       if (this.state.status !== GAME_STATUS.PLAYING) {
         break;
       }
@@ -136,6 +148,7 @@ export class GameLoop {
 
       this.state = result.state;
       stateChanged = true;
+      tickCount++;
 
       // Stop if game ended
       if (
@@ -149,8 +162,13 @@ export class GameLoop {
       this.accumulator -= this.tickInterval;
     }
 
-    // ✅ Only notify state change if state actually changed
-    if (stateChanged) {
+    // Clear remaining accumulator if we hit the tick limit
+    if (tickCount >= maxTicksPerFrame) {
+      this.accumulator = 0;
+    }
+
+    // Only notify state change if state actually changed
+    if (stateChanged && this.onStateChange) {
       this.onStateChange(this.state);
     }
   }
@@ -174,17 +192,20 @@ export class GameLoop {
    * Reset to new state
    */
   reset(newState) {
-    this.state = { ...newState }; // ✅ Create a copy
+    // ✅ Don't deep copy - just reference the new state
+    this.state = newState;
     this.running = false;
     this.accumulator = 0;
     this.lastTick = performance.now();
     
-    // ✅ Stop any running animation frame
+    // Stop any running animation frame
     if (this.rafId) {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
     }
     
-    this.onStateChange(this.state);
+    if (this.onStateChange) {
+      this.onStateChange(this.state);
+    }
   }
 }

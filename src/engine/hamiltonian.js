@@ -1,6 +1,6 @@
 // FILE: src/engine/hamiltonian.js
 /**
- * Hamiltonian cycle generation and navigation
+ * Hamiltonian cycle generation and navigation - FIXED VERSION
  */
 
 import { createGrid } from './grid.js';
@@ -37,66 +37,70 @@ export function generateHamiltonianCycle(rows, cols) {
     cycleIndex.set(cycle[i], i);
   }
 
+  console.log('Generated Hamiltonian cycle:', {
+    length: cycle.length,
+    expectedLength: rows * cols,
+    firstFew: cycle.slice(0, 10),
+    cycleIndexSize: cycleIndex.size,
+    isMap: cycleIndex instanceof Map,
+    hasGetMethod: typeof cycleIndex.get === 'function'
+  });
+
+  // Verify the Map is working
+  const testCell = cycle[0];
+  const testPos = cycleIndex.get(testCell);
+  console.log('Map test - cell:', testCell, 'position:', testPos);
+
+  // Helper functions
+  const getNext = (cellIndex) => {
+    const pos = cycleIndex.get(cellIndex);
+    if (pos === undefined) {
+      console.error(`Cell ${cellIndex} not in cycle. Available cells:`, Array.from(cycleIndex.keys()).slice(0, 10));
+      throw new Error(`Cell ${cellIndex} not in cycle`);
+    }
+    return cycle[(pos + 1) % cycle.length];
+  };
+
+  const getPrev = (cellIndex) => {
+    const pos = cycleIndex.get(cellIndex);
+    if (pos === undefined) {
+      console.error(`Cell ${cellIndex} not in cycle`);
+      throw new Error(`Cell ${cellIndex} not in cycle`);
+    }
+    return cycle[(pos - 1 + cycle.length) % cycle.length];
+  };
+
+  const getDistance = (from, to) => {
+    const fromPos = cycleIndex.get(from);
+    const toPos = cycleIndex.get(to);
+    if (fromPos === undefined || toPos === undefined) {
+      console.error('Cells not in cycle:', { from, to, fromPos, toPos });
+      throw new Error('Cells not in cycle');
+    }
+    return cyclicDistance(fromPos, toPos, cycle.length);
+  };
+
+  const getPath = (from, to) => {
+    const distance = getDistance(from, to);
+    const path = [];
+    let current = from;
+
+    for (let i = 0; i < distance; i++) {
+      current = getNext(current);
+      path.push(current);
+    }
+
+    return path;
+  };
+
   return {
     cycle,
     cycleIndex,
     length: cycle.length,
-
-    /**
-     * Get next cell in cycle
-     * @param {number} cellIndex - Current cell
-     * @returns {number} Next cell in cycle
-     */
-    getNext: cellIndex => {
-      const pos = cycleIndex.get(cellIndex);
-      if (pos === undefined) throw new Error(`Cell ${cellIndex} not in cycle`);
-      return cycle[(pos + 1) % cycle.length];
-    },
-
-    /**
-     * Get previous cell in cycle
-     * @param {number} cellIndex - Current cell
-     * @returns {number} Previous cell in cycle
-     */
-    getPrev: cellIndex => {
-      const pos = cycleIndex.get(cellIndex);
-      if (pos === undefined) throw new Error(`Cell ${cellIndex} not in cycle`);
-      return cycle[(pos - 1 + cycle.length) % cycle.length];
-    },
-
-    /**
-     * Get distance between two cells along cycle
-     * @param {number} from - Starting cell
-     * @param {number} to - Ending cell
-     * @returns {number} Distance along cycle
-     */
-    getDistance: (from, to) => {
-      const fromPos = cycleIndex.get(from);
-      const toPos = cycleIndex.get(to);
-      if (fromPos === undefined || toPos === undefined) {
-        throw new Error('Cells not in cycle');
-      }
-      return cyclicDistance(fromPos, toPos, cycle.length);
-    },
-
-    /**
-     * Get path from one cell to another along cycle
-     * @param {number} from - Starting cell
-     * @param {number} to - Ending cell
-     * @returns {number[]} Path along cycle
-     */
-    getPath: (from, to) => {
-      const distance = this.getDistance(from, to);
-      const path = [];
-      let current = from;
-
-      for (let i = 0; i < distance; i++) {
-        current = this.getNext(current);
-        path.push(current);
-      }
-
-      return path;
-    },
+    getNext,
+    getPrev,
+    getDistance,
+    getPath,
   };
 }
 

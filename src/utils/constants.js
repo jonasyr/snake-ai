@@ -1,20 +1,20 @@
 // FILE: src/utils/constants.js
 /**
- * Game constants and configuration defaults
+ * Game constants and configuration defaults - FIXED VERSION
  */
 
 export const DEFAULT_CONFIG = {
-  rows: 20,                    // ✅ Lowercase to match usage
-  cols: 20,                    // ✅ Lowercase to match usage
-  tickMs: 100,                 // ✅ Lowercase to match usage
-  seed: Date.now(),            // ✅ Add missing seed
-  shortcutsEnabled: true,      // ✅ Add missing property
-  safetyBuffer: 2,            // ✅ Add missing property
-  lateGameLock: 4,            // ✅ Add missing property
-  minShortcutWindow: 2,       // ✅ Add missing property
-  scorePerfruit: 10,          // ✅ Add missing property
-  shortcutBonus: 5,           // ✅ Add missing property
-  cellSize: 24,               // ✅ Add missing property
+  rows: 20,
+  cols: 20,
+  tickMs: 100,
+  seed: 42, // Use a fixed seed instead of Date.now() for consistency
+  shortcutsEnabled: false, // Temporarily disable shortcuts to debug teleporting
+  safetyBuffer: 2,
+  lateGameLock: 4,
+  minShortcutWindow: 2,
+  scorePerfruit: 10,
+  shortcutBonus: 5,
+  cellSize: 24,
 };
 
 // Keep uppercase versions for internal engine constants
@@ -23,7 +23,7 @@ export const ENGINE_CONSTANTS = {
   COLS: 20,
   TICK_MS: 100,
   CELL_SIZE: 24,
-  SEED: Date.now(),
+  SEED: 42,
   SHORTCUTS_ENABLED: true,
   SAFETY_BUFFER: 2,
   LATE_GAME_LOCK: 4,

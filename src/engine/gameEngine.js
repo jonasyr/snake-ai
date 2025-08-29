@@ -1,6 +1,6 @@
 // FILE: src/engine/gameEngine.js
 /**
- * Main game engine with pure state transitions
+ * Main game engine with pure state transitions - FIXED VERSION
  */
 
 import { createSnake, moveSnake, getHead, getTail } from './snake.js';
@@ -19,17 +19,32 @@ import { DEFAULT_CONFIG } from '../utils/constants.js';
 export function initializeGame(config = DEFAULT_CONFIG) {
   const { rows, cols, seed, ...otherConfig } = { ...DEFAULT_CONFIG, ...config };
 
+  console.log('Initializing game with config:', { rows, cols, seed });
+
   // Generate Hamiltonian cycle
   const hamiltonianData = generateHamiltonianCycle(rows, cols);
+  
+  if (!hamiltonianData.cycle || hamiltonianData.cycle.length === 0) {
+    throw new Error('Failed to generate Hamiltonian cycle');
+  }
+
+  console.log('Hamiltonian cycle generated:', {
+    length: hamiltonianData.cycle.length,
+    expected: rows * cols
+  });
 
   // Initialize snake at first position in cycle
   const startCell = hamiltonianData.cycle[0];
   const snake = createSnake(startCell);
 
+  console.log('Snake initialized at cell:', startCell);
+
   // Spawn initial fruit
   const fruit = spawnFruit(snake.occupied, hamiltonianData.cycle.length);
 
-  return {
+  console.log('Fruit spawned at cell:', fruit);
+
+  const initialState = {
     config: { rows, cols, seed, ...otherConfig },
     snake,
     fruit,
@@ -44,6 +59,15 @@ export function initializeGame(config = DEFAULT_CONFIG) {
       shortcutEdge: null,
     },
   };
+
+  console.log('Initial game state created:', {
+    snakeLength: initialState.snake.body.length,
+    fruitPosition: initialState.fruit,
+    cycleLength: initialState.cycle.length,
+    status: initialState.status
+  });
+
+  return initialState;
 }
 
 /**
@@ -74,6 +98,7 @@ export function gameTick(gameState) {
   // Check collision
   const collision = checkCollision(nextCell, gameState);
   if (collision.collision) {
+    console.warn('Collision detected:', collision);
     return {
       state: { ...gameState, status: GAME_STATUS.GAME_OVER },
       result: { valid: false, reason: collision.reason, collision: collision.type },
@@ -144,14 +169,24 @@ export function gameTick(gameState) {
  * @returns {number[]} Planned path array
  */
 function calculatePlannedPath(snake, fruit, cycle, cycleIndex) {
+  if (!snake.body || snake.body.length === 0 || fruit < 0 || !cycle || !cycleIndex) {
+    return [];
+  }
+
   const headCell = getHead(snake);
   const headPos = cycleIndex.get(headCell);
   const fruitPos = cycleIndex.get(fruit);
 
+  if (headPos === undefined || fruitPos === undefined) {
+    console.warn('Could not find head or fruit position in cycle');
+    return [];
+  }
+
   const path = [];
   let currentPos = headPos;
+  const maxSteps = Math.min(cycle.length, 20); // Limit path length for performance
 
-  while (currentPos !== fruitPos && path.length < cycle.length) {
+  while (currentPos !== fruitPos && path.length < maxSteps) {
     currentPos = (currentPos + 1) % cycle.length;
     path.push(cycle[currentPos]);
   }
@@ -188,6 +223,21 @@ export function resetGame(config) {
  */
 export function getGameStats(gameState) {
   const { snake, moves, score, cycle, fruit } = gameState;
+  
+  if (!snake?.body || !cycle || !gameState.cycleIndex) {
+    return {
+      moves: 0,
+      length: 0,
+      score: 0,
+      free: 0,
+      distHeadApple: 0,
+      distHeadTail: 0,
+      shortcut: false,
+      efficiency: 0,
+      status: gameState.status || 'unknown',
+    };
+  }
+
   const head = getHead(snake);
   const tail = getTail(snake);
   const headPos = gameState.cycleIndex.get(head);
@@ -195,13 +245,17 @@ export function getGameStats(gameState) {
   const fruitPos = gameState.cycleIndex.get(fruit);
 
   return {
-    moves,
+    moves: moves || 0,
     length: snake.body.length,
-    score,
+    score: score || 0,
     free: cycle.length - snake.body.length,
-    distHeadApple: (fruitPos - headPos + cycle.length) % cycle.length,
-    distHeadTail: (tailPos - headPos + cycle.length) % cycle.length,
-    shortcut: gameState.lastMoveWasShortcut,
+    distHeadApple: (headPos !== undefined && fruitPos !== undefined) 
+      ? (fruitPos - headPos + cycle.length) % cycle.length 
+      : 0,
+    distHeadTail: (headPos !== undefined && tailPos !== undefined) 
+      ? (tailPos - headPos + cycle.length) % cycle.length 
+      : 0,
+    shortcut: gameState.lastMoveWasShortcut || false,
     efficiency: moves > 0 ? Math.round((score / moves) * 100) : 0,
     status: gameState.status,
   };

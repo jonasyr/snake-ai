@@ -1,6 +1,6 @@
 // FILE: src/ui/hooks/useGameState.js
 /**
- * React hook for managing game state - FIXED VERSION
+ * React hook for managing game state - SIMPLIFIED FIXED VERSION
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
@@ -10,34 +10,75 @@ import { loadSettings, saveSettings, updateHighScore } from '../../game/settings
 import { seed } from '../../engine/rng.js';
 
 export function useGameState() {
-  const [settings, setSettings] = useState(loadSettings);
-  const [gameState, setGameState] = useState(null); // ✅ Start with null
+  const [settings, setSettings] = useState(() => loadSettings());
+  const [gameState, setGameState] = useState(null);
   const [stats, setStats] = useState({});
 
   const gameLoopRef = useRef(null);
+  const initializedRef = useRef(false);
 
-  // Initialize game state when settings change
+  // Helper functions for stats calculation
+  const calculateDistance = useCallback((state) => {
+    if (!state.snake?.body?.[0] || !state.cycleIndex || state.fruit === undefined) return 0;
+    const headPos = state.cycleIndex.get(state.snake.body[0]);
+    const fruitPos = state.cycleIndex.get(state.fruit);
+    if (headPos === undefined || fruitPos === undefined) return 0;
+    return (fruitPos - headPos + state.cycle.length) % state.cycle.length;
+  }, []);
+
+  const calculateTailDistance = useCallback((state) => {
+    if (!state.snake?.body || state.snake.body.length < 2 || !state.cycleIndex) return 0;
+    const headPos = state.cycleIndex.get(state.snake.body[0]);
+    const tailPos = state.cycleIndex.get(state.snake.body[state.snake.body.length - 1]);
+    if (headPos === undefined || tailPos === undefined) return 0;
+    return (tailPos - headPos + state.cycle.length) % state.cycle.length;
+  }, []);
+
+  // Initialize game state ONCE when component mounts or settings change meaningfully
   useEffect(() => {
+    if (initializedRef.current) {
+      return; // Already initialized
+    }
+    
+    console.log('Initializing game state...');
     seed(settings.seed);
     const newState = initializeGame(settings);
     setGameState(newState);
-  }, [settings]); // ✅ Reset game state when settings change
+    
+    // Reset stats
+    const initialStats = {
+      moves: 0,
+      length: 1,
+      score: 0,
+      free: (newState.cycle?.length || 400) - 1,
+      distHeadApple: calculateDistance(newState),
+      distHeadTail: calculateTailDistance(newState),
+      shortcut: false,
+      efficiency: 0,
+    };
+    setStats(initialStats);
+    
+    initializedRef.current = true;
+  }, [settings.rows, settings.cols, settings.seed, calculateDistance, calculateTailDistance]); // Only reinit on major setting changes
 
-  // Initialize game loop when gameState is available
+  // Initialize game loop when gameState becomes available
   useEffect(() => {
     if (!gameState) return;
 
+    console.log('Setting up game loop...');
+    
     // Stop existing loop
     if (gameLoopRef.current) {
       gameLoopRef.current.stop();
+      gameLoopRef.current = null;
     }
 
     const loop = new GameLoop(
-      gameState, // ✅ Use current gameState, not stale closure
+      gameState,
       newState => {
         setGameState(newState);
         
-        // Get stats from the new state, not from loop
+        // Update stats
         const currentStats = {
           moves: newState.moves || 0,
           length: newState.snake?.body?.length || 1,
@@ -63,39 +104,35 @@ export function useGameState() {
     return () => {
       if (gameLoopRef.current) {
         gameLoopRef.current.stop();
+        gameLoopRef.current = null;
       }
     };
-  }, [gameState]); // ✅ Recreate loop when gameState changes
+  }, [gameState?.snake?.body?.length, calculateDistance, calculateTailDistance, settings]);
 
-  // Update game loop settings when they change
+  // Update game loop speed when tick interval changes
   useEffect(() => {
-    if (gameLoopRef.current) {
+    if (gameLoopRef.current && settings.tickMs !== undefined) {
       gameLoopRef.current.setTickInterval(settings.tickMs);
     }
-  }, [settings.tickMs]); // ✅ Only depend on the specific property we need
-
-  // Helper functions for stats calculation
-  const calculateDistance = (state) => {
-    if (!state.snake?.body?.[0] || !state.cycleIndex || state.fruit === undefined) return 0;
-    const headPos = state.cycleIndex.get(state.snake.body[0]);
-    const fruitPos = state.cycleIndex.get(state.fruit);
-    if (headPos === undefined || fruitPos === undefined) return 0;
-    return (fruitPos - headPos + state.cycle.length) % state.cycle.length;
-  };
-
-  const calculateTailDistance = (state) => {
-    if (!state.snake?.body || state.snake.body.length < 2 || !state.cycleIndex) return 0;
-    const headPos = state.cycleIndex.get(state.snake.body[0]);
-    const tailPos = state.cycleIndex.get(state.snake.body[state.snake.body.length - 1]);
-    if (headPos === undefined || tailPos === undefined) return 0;
-    return (tailPos - headPos + state.cycle.length) % state.cycle.length;
-  };
+  }, [settings.tickMs]);
 
   // Update settings
   const updateSettings = useCallback(newSettings => {
     setSettings(prevSettings => {
       const updatedSettings = { ...prevSettings, ...newSettings };
       saveSettings(updatedSettings);
+      
+      // Check if we need to reinitialize the game
+      const needsReinit = (
+        updatedSettings.rows !== prevSettings.rows ||
+        updatedSettings.cols !== prevSettings.cols ||
+        updatedSettings.seed !== prevSettings.seed
+      );
+      
+      if (needsReinit) {
+        initializedRef.current = false;
+      }
+      
       return updatedSettings;
     });
   }, []);
@@ -120,10 +157,24 @@ export function useGameState() {
   }, []);
 
   const resetGameState = useCallback(() => {
+    console.log('Resetting game state...');
     seed(settings.seed);
     const newState = resetGame(settings);
-    setGameState(newState); // ✅ This will trigger the useEffect to recreate the loop
-  }, [settings]);
+    setGameState(newState);
+    
+    // Reset stats
+    const resetStats = {
+      moves: 0,
+      length: 1,
+      score: 0,
+      free: (newState.cycle?.length || 400) - 1,
+      distHeadApple: calculateDistance(newState),
+      distHeadTail: calculateTailDistance(newState),
+      shortcut: false,
+      efficiency: 0,
+    };
+    setStats(resetStats);
+  }, [settings, calculateDistance, calculateTailDistance]);
 
   const toggleGame = useCallback(() => {
     if (!gameState) return;
@@ -135,23 +186,9 @@ export function useGameState() {
     } else {
       resetGameState();
     }
-  }, [gameState?.status, startGame, pauseGame, resetGameState]); // ✅ Only depend on the specific property
+  }, [gameState?.status, startGame, pauseGame, resetGameState]);
 
-  // Return null for gameState until it's initialized
-  if (!gameState) {
-    return {
-      gameState: null,
-      stats: {},
-      settings,
-      updateSettings,
-      startGame: () => {},
-      pauseGame: () => {},
-      stepGame: () => {},
-      resetGameState,
-      toggleGame: () => {},
-    };
-  }
-
+  // Return current state
   return {
     gameState,
     stats,
