@@ -7,12 +7,12 @@ export const DEFAULT_CONFIG = {
   rows: 20,
   cols: 20,
   tickMs: 100,
-  seed: 42, // Use a fixed seed instead of Date.now() for consistency
-  shortcutsEnabled: false, // Temporarily disable shortcuts to debug teleporting
+  seed: 42,
+  shortcutsEnabled: true,
   safetyBuffer: 2,
   lateGameLock: 4,
   minShortcutWindow: 2,
-  scorePerfruit: 10,
+  scorePerFruit: 10,
   shortcutBonus: 5,
   cellSize: 24,
 };

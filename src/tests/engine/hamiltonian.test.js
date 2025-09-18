@@ -9,11 +9,23 @@ import { generateHamiltonianCycle, validateCycle } from '../../engine/hamiltonia
 describe('Hamiltonian Cycle', () => {
   describe('generateHamiltonianCycle', () => {
     it('should generate valid cycle for small grid', () => {
-      const hamiltonian = generateHamiltonianCycle(3, 3);
+      const rows = 3;
+      const cols = 4;
+      const hamiltonian = generateHamiltonianCycle(rows, cols);
 
-      expect(hamiltonian.cycle).toHaveLength(9);
-      expect(hamiltonian.cycleIndex.size).toBe(9);
-      expect(validateCycle(hamiltonian.cycle, 9)).toBe(true);
+      expect(hamiltonian.cycle).toHaveLength(rows * cols);
+      expect(hamiltonian.cycleIndex.size).toBe(rows * cols);
+      expect(validateCycle(hamiltonian.cycle, rows, cols)).toBe(true);
+    });
+
+    it('should generate valid cycle when only columns are even', () => {
+      const rows = 5;
+      const cols = 6; // even number of columns, odd rows
+      const hamiltonian = generateHamiltonianCycle(rows, cols);
+
+      expect(hamiltonian.cycle).toHaveLength(rows * cols);
+      expect(hamiltonian.cycleIndex.size).toBe(rows * cols);
+      expect(validateCycle(hamiltonian.cycle, rows, cols)).toBe(true);
     });
 
     it('should generate valid cycle for standard grid', () => {
@@ -21,7 +33,7 @@ describe('Hamiltonian Cycle', () => {
 
       expect(hamiltonian.cycle).toHaveLength(400);
       expect(hamiltonian.cycleIndex.size).toBe(400);
-      expect(validateCycle(hamiltonian.cycle, 400)).toBe(true);
+      expect(validateCycle(hamiltonian.cycle, 20, 20)).toBe(true);
     });
 
     it('should have correct next/prev relationships', () => {
@@ -49,15 +61,15 @@ describe('Hamiltonian Cycle', () => {
 
   describe('validateCycle', () => {
     it('should accept valid cycles', () => {
-      expect(validateCycle([0, 1, 2, 3], 4)).toBe(true);
-      expect(validateCycle([3, 0, 2, 1], 4)).toBe(true);
+      expect(validateCycle([0, 1, 3, 2], 2, 2)).toBe(true);
+      expect(validateCycle([0, 2, 3, 1], 2, 2)).toBe(true);
     });
 
     it('should reject invalid cycles', () => {
-      expect(validateCycle([0, 1, 2], 4)).toBe(false); // Wrong length
-      expect(validateCycle([0, 1, 1, 3], 4)).toBe(false); // Duplicates
-      expect(validateCycle([0, 1, 2, 4], 4)).toBe(false); // Out of bounds
-      expect(validateCycle([-1, 0, 1, 2], 4)).toBe(false); // Negative
+      expect(validateCycle([0, 1, 2], 2, 2)).toBe(false); // Wrong length
+      expect(validateCycle([0, 1, 1, 3], 2, 2)).toBe(false); // Duplicates
+      expect(validateCycle([0, 1, 2, 4], 2, 2)).toBe(false); // Out of bounds
+      expect(validateCycle([-1, 0, 1, 2], 2, 2)).toBe(false); // Negative
     });
   });
 });
