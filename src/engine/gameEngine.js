@@ -19,30 +19,19 @@ import { DEFAULT_CONFIG } from '../utils/constants.js';
 export function initializeGame(config = DEFAULT_CONFIG) {
   const { rows, cols, seed, ...otherConfig } = { ...DEFAULT_CONFIG, ...config };
 
-  console.log('Initializing game with config:', { rows, cols, seed });
-
   // Generate Hamiltonian cycle
   const hamiltonianData = generateHamiltonianCycle(rows, cols);
-  
+
   if (!hamiltonianData.cycle || hamiltonianData.cycle.length === 0) {
     throw new Error('Failed to generate Hamiltonian cycle');
   }
-
-  console.log('Hamiltonian cycle generated:', {
-    length: hamiltonianData.cycle.length,
-    expected: rows * cols
-  });
 
   // Initialize snake at first position in cycle
   const startCell = hamiltonianData.cycle[0];
   const snake = createSnake(startCell);
 
-  console.log('Snake initialized at cell:', startCell);
-
   // Spawn initial fruit
   const fruit = spawnFruit(snake.occupied, hamiltonianData.cycle.length);
-
-  console.log('Fruit spawned at cell:', fruit);
 
   const initialState = {
     config: { rows, cols, seed, ...otherConfig },
@@ -59,13 +48,6 @@ export function initializeGame(config = DEFAULT_CONFIG) {
       shortcutEdge: null,
     },
   };
-
-  console.log('Initial game state created:', {
-    snakeLength: initialState.snake.body.length,
-    fruitPosition: initialState.fruit,
-    cycleLength: initialState.cycle.length,
-    status: initialState.status
-  });
 
   return initialState;
 }
@@ -98,7 +80,6 @@ export function gameTick(gameState) {
   // Check collision
   const collision = checkCollision(nextCell, gameState);
   if (collision.collision) {
-    console.warn('Collision detected:', collision);
     return {
       state: { ...gameState, status: GAME_STATUS.GAME_OVER },
       result: { valid: false, reason: collision.reason, collision: collision.type },
@@ -137,8 +118,8 @@ export function gameTick(gameState) {
       fruit: newFruit,
       score:
         gameState.score +
-        (config.scorePerfruit || 10) +
-        (pathPlan.isShortcut ? (config.shortcutBonus || 5) : 0),
+        (config.scorePerFruit ?? DEFAULT_CONFIG.scorePerFruit) +
+        (pathPlan.isShortcut ? (config.shortcutBonus ?? DEFAULT_CONFIG.shortcutBonus) : 0),
     };
 
     // Check if game complete after eating
@@ -178,7 +159,6 @@ function calculatePlannedPath(snake, fruit, cycle, cycleIndex) {
   const fruitPos = cycleIndex.get(fruit);
 
   if (headPos === undefined || fruitPos === undefined) {
-    console.warn('Could not find head or fruit position in cycle');
     return [];
   }
 

@@ -6,6 +6,22 @@
 import { gameTick, setGameStatus, getGameStats } from '../engine/gameEngine.js';
 import { GAME_STATUS } from '../engine/types.js';
 
+const getNow = () => (
+  typeof performance !== 'undefined' && typeof performance.now === 'function'
+    ? performance.now()
+    : Date.now()
+);
+
+const requestFrame =
+  typeof globalThis !== 'undefined' && typeof globalThis.requestAnimationFrame === 'function'
+    ? globalThis.requestAnimationFrame.bind(globalThis)
+    : (cb) => setTimeout(() => cb(getNow()), 16);
+
+const cancelFrame =
+  typeof globalThis !== 'undefined' && typeof globalThis.cancelAnimationFrame === 'function'
+    ? globalThis.cancelAnimationFrame.bind(globalThis)
+    : clearTimeout;
+
 export class GameLoop {
   constructor(initialState, onStateChange, config = {}) {
     // ✅ Don't deep copy - just reference the original state
@@ -44,7 +60,7 @@ export class GameLoop {
 
     this.state = setGameStatus(this.state, GAME_STATUS.PLAYING);
     this.running = true;
-    this.lastTick = performance.now();
+    this.lastTick = getNow();
     this.accumulator = 0;
 
     // Notify state change
@@ -53,7 +69,7 @@ export class GameLoop {
     }
 
     if (!this.rafId) {
-      this.rafId = requestAnimationFrame(this.render);
+      this.rafId = requestFrame(this.render);
     }
   }
 
@@ -75,7 +91,7 @@ export class GameLoop {
   stop() {
     this.running = false;
     if (this.rafId) {
-      cancelAnimationFrame(this.rafId);
+      cancelFrame(this.rafId);
       this.rafId = null;
     }
 
@@ -182,7 +198,7 @@ export class GameLoop {
 
     // Continue render loop
     if (this.running || this.state.status === GAME_STATUS.PAUSED) {
-      this.rafId = requestAnimationFrame(this.render);
+      this.rafId = requestFrame(this.render);
     } else {
       this.rafId = null;
     }
@@ -194,13 +210,17 @@ export class GameLoop {
   reset(newState) {
     // ✅ Don't deep copy - just reference the new state
     this.state = newState;
+    this.config = newState?.config ?? this.config;
+    if (this.config && typeof this.config.tickMs === 'number') {
+      this.tickInterval = this.config.tickMs;
+    }
     this.running = false;
     this.accumulator = 0;
-    this.lastTick = performance.now();
-    
+    this.lastTick = getNow();
+
     // Stop any running animation frame
     if (this.rafId) {
-      cancelAnimationFrame(this.rafId);
+      cancelFrame(this.rafId);
       this.rafId = null;
     }
     
