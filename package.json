@@ -18,6 +18,9 @@
     "type-check": "jsdoc -t templates/haruki -d docs src/**/*.js",
     "simulate": "node scripts/simulate.js",
     "simulate:sweep": "node scripts/shortcut-sweep.js",
+    "explore": "node scripts/comprehensive-sweep.js",
+    "sample": "node scripts/smart-sampling.js",
+    "analyze": "node scripts/analyze-results.js",
     "prepare": "husky install"
   },
   "dependencies": {
