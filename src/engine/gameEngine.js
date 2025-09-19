@@ -10,7 +10,7 @@ import { checkCollision } from './collision.js';
 import { planPath } from './shortcuts.js';
 import { GAME_STATUS, MOVE_RESULT } from './types.js';
 import { DEFAULT_CONFIG } from '../utils/constants.js';
-import { isValidGameConfig, isValidCellIndex } from '../utils/guards.js';
+import { isValidCellIndex, validateGameConfig } from '../utils/guards.js';
 
 /**
  * Initialize a new game state
@@ -20,10 +20,11 @@ import { isValidGameConfig, isValidCellIndex } from '../utils/guards.js';
 export function initializeGame(config = DEFAULT_CONFIG) {
   const { rows, cols, seed: rawSeed, ...otherConfig } = { ...DEFAULT_CONFIG, ...config };
 
-  if (!isValidGameConfig({ rows, cols, seed: rawSeed })) {
-    throw new Error(
-      `Invalid game configuration: rows and cols must be positive even-aligned integers (received rows=${rows}, cols=${cols}).`,
-    );
+  const validation = validateGameConfig({ rows, cols, seed: rawSeed });
+
+  if (!validation.valid) {
+    const details = validation.errors.length ? ` Details: ${validation.errors.join('; ')}` : '';
+    throw new Error(`Invalid game configuration provided.${details}`);
   }
 
   const seed = Number.isSafeInteger(Math.trunc(rawSeed))

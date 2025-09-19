@@ -162,13 +162,19 @@ export function useCanvas(gameState, settings = DEFAULT_CONFIG) {
         rafRef.current = null;
       }
 
-      if (canvasRef.current) {
+      if (canvasRef.current === canvas) {
         try {
-          const currentCanvas = canvasRef.current;
-          ctx.clearRect(0, 0, currentCanvas.width, currentCanvas.height);
+          ctx.save();
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.restore();
         } catch (error) {
-          console.warn('Failed to clear canvas during cleanup:', error);
+          console.warn('Failed to reset canvas during cleanup:', error);
         }
+
+        canvas.width = 0;
+        canvas.height = 0;
+        canvas.removeAttribute('style');
       }
 
       if (ctxRef.current === ctx) {

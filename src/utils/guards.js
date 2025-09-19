@@ -16,38 +16,58 @@ export function isValidPosition(row, col, rows, cols) {
 }
 
 /**
- * Validates game configuration
+ * Validates game configuration and returns detailed errors when invalid
  * @param {Object} config - Configuration object
- * @returns {boolean} Whether configuration is valid
+ * @returns {{ valid: boolean, errors: string[] }} Validation result with errors
  */
-export function isValidGameConfig(config) {
+export function validateGameConfig(config) {
+  const errors = [];
+
   if (typeof config !== 'object' || config === null) {
-    return false;
+    return { valid: false, errors: ['Configuration must be an object'] };
   }
 
   const { rows, cols, seed } = config;
 
   if (!Number.isInteger(rows) || !Number.isInteger(cols)) {
-    return false;
+    errors.push('Rows and columns must be integers');
   }
 
-  if (rows <= 0 || cols <= 0) {
-    return false;
+  if (Number.isInteger(rows) && rows <= 0) {
+    errors.push('Rows must be greater than zero');
   }
 
-  if (rows * cols < 4) {
-    return false;
+  if (Number.isInteger(cols) && cols <= 0) {
+    errors.push('Columns must be greater than zero');
   }
 
-  if (rows % 2 !== 0 && cols % 2 !== 0) {
-    return false;
+  if (Number.isInteger(rows) && Number.isInteger(cols)) {
+    if (rows * cols < 4) {
+      errors.push('Grid must contain at least four cells');
+    }
+
+    if (rows % 2 !== 0 && cols % 2 !== 0) {
+      errors.push('At least one dimension must be even to generate a Hamiltonian cycle');
+    }
   }
 
   if (seed !== undefined && !Number.isSafeInteger(Math.trunc(seed))) {
-    return false;
+    errors.push('Seed must be a safe integer');
   }
 
-  return true;
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
+ * Validates game configuration
+ * @param {Object} config - Configuration object
+ * @returns {boolean} Whether configuration is valid
+ */
+export function isValidGameConfig(config) {
+  return validateGameConfig(config).valid;
 }
 
 /**
