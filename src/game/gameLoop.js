@@ -42,6 +42,9 @@ export class GameLoop {
     // Worker for complex planning (future extension)
     this.plannerWorker = null;
 
+    // Re-entrancy guard for tick updates
+    this.updating = false;
+
     // Bind methods
     this.tick = this.tick.bind(this);
     this.render = this.render.bind(this);
@@ -90,6 +93,7 @@ export class GameLoop {
    */
   stop() {
     this.running = false;
+    this.updating = false;
     if (this.rafId) {
       cancelFrame(this.rafId);
       this.rafId = null;
@@ -105,6 +109,14 @@ export class GameLoop {
    * Execute a single step
    */
   step() {
+    if (this.updating) {
+      console.warn('Ignoring manual step while update is in progress.');
+      return {
+        state: this.state,
+        result: { valid: false, reason: 'Update in progress' },
+      };
+    }
+
     if (this.state.status === GAME_STATUS.GAME_OVER || this.state.status === GAME_STATUS.COMPLETE) {
       return;
     }
@@ -138,54 +150,62 @@ export class GameLoop {
    * Main game tick (called by render loop)
    */
   tick(currentTime) {
-    if (!this.running) return;
-
-    const deltaTime = currentTime - this.lastTick;
-    this.lastTick = currentTime;
-    this.accumulator += deltaTime;
-
-    let stateChanged = false;
-    let tickCount = 0;
-    const maxTicksPerFrame = 5; // Prevent too many ticks in one frame
-
-    // Fixed timestep with accumulator
-    while (this.accumulator >= this.tickInterval && tickCount < maxTicksPerFrame) {
-      if (this.state.status !== GAME_STATUS.PLAYING) {
-        break;
-      }
-
-      const result = gameTick(this.state);
-      
-      if (!result.result.valid) {
-        console.warn('Invalid game tick result:', result.result.reason);
-        this.running = false;
-        break;
-      }
-
-      this.state = result.state;
-      stateChanged = true;
-      tickCount++;
-
-      // Stop if game ended
-      if (
-        this.state.status === GAME_STATUS.GAME_OVER ||
-        this.state.status === GAME_STATUS.COMPLETE
-      ) {
-        this.running = false;
-        break;
-      }
-
-      this.accumulator -= this.tickInterval;
+    if (!this.running || this.updating) {
+      return;
     }
 
-    // Clear remaining accumulator if we hit the tick limit
-    if (tickCount >= maxTicksPerFrame) {
-      this.accumulator = 0;
-    }
+    this.updating = true;
 
-    // Only notify state change if state actually changed
-    if (stateChanged && this.onStateChange) {
-      this.onStateChange(this.state);
+    try {
+      const deltaTime = currentTime - this.lastTick;
+      this.lastTick = currentTime;
+      this.accumulator += deltaTime;
+
+      let stateChanged = false;
+      let tickCount = 0;
+      const maxTicksPerFrame = 5; // Prevent too many ticks in one frame
+
+      // Fixed timestep with accumulator
+      while (this.accumulator >= this.tickInterval && tickCount < maxTicksPerFrame) {
+        if (this.state.status !== GAME_STATUS.PLAYING) {
+          break;
+        }
+
+        const result = gameTick(this.state);
+
+        if (!result.result.valid) {
+          console.warn('Invalid game tick result:', result.result.reason);
+          this.running = false;
+          break;
+        }
+
+        this.state = result.state;
+        stateChanged = true;
+        tickCount++;
+
+        // Stop if game ended
+        if (
+          this.state.status === GAME_STATUS.GAME_OVER ||
+          this.state.status === GAME_STATUS.COMPLETE
+        ) {
+          this.running = false;
+          break;
+        }
+
+        this.accumulator -= this.tickInterval;
+      }
+
+      // Clear remaining accumulator if we hit the tick limit
+      if (tickCount >= maxTicksPerFrame) {
+        this.accumulator = 0;
+      }
+
+      // Only notify state change if state actually changed
+      if (stateChanged && this.onStateChange) {
+        this.onStateChange(this.state);
+      }
+    } finally {
+      this.updating = false;
     }
   }
 
@@ -215,6 +235,7 @@ export class GameLoop {
       this.tickInterval = this.config.tickMs;
     }
     this.running = false;
+    this.updating = false;
     this.accumulator = 0;
     this.lastTick = getNow();
 

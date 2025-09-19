@@ -17,6 +17,13 @@ A modern, highly optimized Snake game featuring autonomous AI that uses Hamilton
 - **Comprehensive Testing** - Unit, integration, and property-based tests
 - **Visual Customization** - Toggle cycle visualization and shortcuts
 
+## 🛡️ Stability & Reliability
+
+- **Race-free game loop** – Tick processing now guards against concurrent updates triggered by rapid frames.
+- **Robust canvas lifecycle** – Animation frames and contexts are cleaned up to avoid leaks during re-renders.
+- **Strict configuration validation** – Engine rejects unsupported grid sizes before initialization.
+- **Safer settings UI** – Grid and seed inputs validate user choices before applying them.
+
 ## 🚀 Quick Start
 
 ```bash

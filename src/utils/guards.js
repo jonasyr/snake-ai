@@ -21,15 +21,33 @@ export function isValidPosition(row, col, rows, cols) {
  * @returns {boolean} Whether configuration is valid
  */
 export function isValidGameConfig(config) {
-  return (
-    typeof config === 'object' &&
-    config !== null &&
-    typeof config.rows === 'number' &&
-    typeof config.cols === 'number' &&
-    config.rows > 0 &&
-    config.cols > 0 &&
-    config.rows * config.cols >= 4 // Minimum playable size
-  );
+  if (typeof config !== 'object' || config === null) {
+    return false;
+  }
+
+  const { rows, cols, seed } = config;
+
+  if (!Number.isInteger(rows) || !Number.isInteger(cols)) {
+    return false;
+  }
+
+  if (rows <= 0 || cols <= 0) {
+    return false;
+  }
+
+  if (rows * cols < 4) {
+    return false;
+  }
+
+  if (rows % 2 !== 0 && cols % 2 !== 0) {
+    return false;
+  }
+
+  if (seed !== undefined && !Number.isSafeInteger(Math.trunc(seed))) {
+    return false;
+  }
+
+  return true;
 }
 
 /**

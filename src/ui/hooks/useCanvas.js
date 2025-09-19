@@ -113,6 +113,7 @@ export function useCanvas(gameState, settings = DEFAULT_CONFIG) {
   const canvasRef = useRef(null);
   const ctxRef = useRef(null);
   const rafRef = useRef(null);
+  const cleanupRef = useRef(null);
   const drawOptionsRef = useRef({ showCycle: true, showShortcuts: true });
 
   const rows = settings?.rows ?? DEFAULT_CONFIG.rows;
@@ -121,10 +122,17 @@ export function useCanvas(gameState, settings = DEFAULT_CONFIG) {
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas) {
+      cleanupRef.current = null;
+      return noop;
+    }
 
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) {
+      console.error('Failed to acquire 2D context for canvas rendering.');
+      cleanupRef.current = null;
+      return noop;
+    }
 
     const width = cols * cellSize;
     const height = rows * cellSize;
@@ -138,9 +146,30 @@ export function useCanvas(gameState, settings = DEFAULT_CONFIG) {
     ctx.fillStyle = COLORS.BACKGROUND;
     ctx.fillRect(0, 0, width, height);
 
-    return () => {
-      ctxRef.current = null;
+    const cleanup = () => {
+      if (rafRef.current !== null) {
+        CANCEL_RAF_FALLBACK(rafRef.current);
+        rafRef.current = null;
+      }
+
+      if (canvasRef.current) {
+        try {
+          const currentCanvas = canvasRef.current;
+          ctx.clearRect(0, 0, currentCanvas.width, currentCanvas.height);
+        } catch (error) {
+          console.warn('Failed to clear canvas during cleanup:', error);
+        }
+      }
+
+      if (ctxRef.current === ctx) {
+        ctxRef.current = null;
+      }
+
+      cleanupRef.current = null;
     };
+
+    cleanupRef.current = cleanup;
+    return cleanup;
   }, [rows, cols, cellSize]);
 
   const render = useCallback(
@@ -204,16 +233,40 @@ export function useCanvas(gameState, settings = DEFAULT_CONFIG) {
   );
 
   useEffect(() => {
-    if (!ctxRef.current) return noop;
-
-    rafRef.current = RAF_FALLBACK(() => render());
-    return () => {
+    const cancelRaf = () => {
       if (rafRef.current !== null) {
         CANCEL_RAF_FALLBACK(rafRef.current);
         rafRef.current = null;
       }
     };
+
+    cancelRaf();
+
+    if (!ctxRef.current) {
+      return cancelRaf;
+    }
+
+    rafRef.current = RAF_FALLBACK(() => {
+      try {
+        render();
+      } catch (error) {
+        console.error('Canvas render failed:', error);
+        cancelRaf();
+      }
+    });
+
+    return cancelRaf;
   }, [render]);
+
+  useEffect(() => () => {
+    if (cleanupRef.current) {
+      cleanupRef.current();
+      cleanupRef.current = null;
+    } else if (rafRef.current !== null) {
+      CANCEL_RAF_FALLBACK(rafRef.current);
+      rafRef.current = null;
+    }
+  }, []);
 
   return {
     canvasRef,

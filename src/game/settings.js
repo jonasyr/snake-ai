@@ -4,6 +4,32 @@
  */
 
 import { DEFAULT_CONFIG, STORAGE_KEYS } from '../utils/constants.js';
+import { isValidGameConfig } from '../utils/guards.js';
+
+function sanitizeSettings(settings) {
+  const merged = { ...DEFAULT_CONFIG, ...settings };
+  const normalizedRows = Math.trunc(Number(merged.rows));
+  const normalizedCols = Math.trunc(Number(merged.cols));
+  const normalizedSeed = Math.trunc(Number(merged.seed));
+  const normalizedSafetyBuffer =
+    merged.safetyBuffer !== undefined ? Math.trunc(Number(merged.safetyBuffer)) : DEFAULT_CONFIG.safetyBuffer;
+
+  const sanitized = {
+    ...merged,
+    rows: Number.isSafeInteger(normalizedRows) ? normalizedRows : DEFAULT_CONFIG.rows,
+    cols: Number.isSafeInteger(normalizedCols) ? normalizedCols : DEFAULT_CONFIG.cols,
+    seed: Number.isSafeInteger(normalizedSeed) ? normalizedSeed : DEFAULT_CONFIG.seed,
+    safetyBuffer: Number.isSafeInteger(normalizedSafetyBuffer)
+      ? Math.max(1, normalizedSafetyBuffer)
+      : DEFAULT_CONFIG.safetyBuffer,
+  };
+
+  if (typeof merged.shortcutsEnabled !== 'boolean') {
+    sanitized.shortcutsEnabled = DEFAULT_CONFIG.shortcutsEnabled;
+  }
+
+  return sanitized;
+}
 
 /**
  * Load settings from localStorage
@@ -14,7 +40,10 @@ export function loadSettings() {
     const stored = localStorage.getItem(STORAGE_KEYS.SETTINGS);
     if (stored) {
       const parsed = JSON.parse(stored);
-      return { ...DEFAULT_CONFIG, ...parsed };
+      const merged = sanitizeSettings(parsed);
+      if (isValidGameConfig(merged)) {
+        return merged;
+      }
     }
   } catch (error) {
     console.warn('Failed to load settings:', error);
@@ -29,7 +58,14 @@ export function loadSettings() {
  */
 export function saveSettings(settings) {
   try {
-    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
+    const sanitized = sanitizeSettings(settings);
+
+    if (!isValidGameConfig(sanitized)) {
+      console.warn('Attempted to save invalid settings:', settings);
+      return;
+    }
+
+    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(sanitized));
   } catch (error) {
     console.warn('Failed to save settings:', error);
   }
@@ -98,9 +134,10 @@ export function importSettings(jsonString) {
   try {
     const settings = JSON.parse(jsonString);
     // Validate required fields
-    if (typeof settings.rows === 'number' && typeof settings.cols === 'number') {
-      saveSettings(settings);
-      return settings;
+    const sanitized = sanitizeSettings(settings);
+    if (isValidGameConfig(sanitized)) {
+      saveSettings(sanitized);
+      return sanitized;
     }
   } catch (error) {
     console.warn('Failed to import settings:', error);
