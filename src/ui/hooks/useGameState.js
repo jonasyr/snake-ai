@@ -5,6 +5,7 @@ import { loadSettings, saveSettings, updateHighScore } from '../../game/settings
 import { seed } from '../../engine/rng.js';
 import { GAME_STATUS } from '../../engine/types.js';
 import { DEFAULT_CONFIG } from '../../utils/constants.js';
+import { validateGameConfig } from '../../utils/guards.js';
 import { cyclicDistance } from '../../utils/math.js';
 
 function safeLoadSettings() {
@@ -12,6 +13,37 @@ function safeLoadSettings() {
     return loadSettings();
   } catch {
     return { ...DEFAULT_CONFIG };
+  }
+}
+
+/**
+ * Create a game state from provided settings with validation and fallbacks.
+ * @param {Object} settings - Game settings to use when creating the state
+ * @returns {Object} Initialized game state
+ */
+function createGameStateFromSettings(settings) {
+  const mergedSettings = { ...DEFAULT_CONFIG, ...settings };
+  const validation = validateGameConfig(mergedSettings);
+
+  if (!validation.valid) {
+    console.warn('Falling back to default configuration due to invalid settings.', {
+      errors: validation.errors,
+      settings: mergedSettings,
+    });
+    seed(DEFAULT_CONFIG.seed);
+    return initializeGame(DEFAULT_CONFIG);
+  }
+
+  try {
+    seed(mergedSettings.seed ?? DEFAULT_CONFIG.seed);
+    return initializeGame(mergedSettings);
+  } catch (error) {
+    console.error('Failed to initialize game state with provided settings. Using defaults.', error, {
+      settings: mergedSettings,
+      validationErrors: validation.errors,
+    });
+    seed(DEFAULT_CONFIG.seed);
+    return initializeGame(DEFAULT_CONFIG);
   }
 }
 
@@ -78,8 +110,7 @@ export function useGameState() {
 
   const [settings, setSettings] = useState(initialSettingsRef.current);
   const [gameState, setGameState] = useState(() => {
-    seed(initialSettingsRef.current.seed ?? DEFAULT_CONFIG.seed);
-    const initialState = initializeGame(initialSettingsRef.current);
+    const initialState = createGameStateFromSettings(initialSettingsRef.current);
     initialStateRef.current = initialState;
     return initialState;
   });
@@ -101,15 +132,27 @@ export function useGameState() {
     }
   }, []);
 
+  const handleLoopError = useCallback((error, context) => {
+    console.error('Game loop encountered an error. Pausing gameplay.', context, error);
+    setGameState(prevState => {
+      if (!prevState) {
+        return prevState;
+      }
+      return { ...prevState, status: GAME_STATUS.PAUSED };
+    });
+  }, []);
+
   useEffect(() => {
-    const loop = new GameLoop(initialStateRef.current, handleStateUpdate, settingsRef.current);
+    const loop = new GameLoop(initialStateRef.current, handleStateUpdate, settingsRef.current, {
+      onError: handleLoopError,
+    });
     gameLoopRef.current = loop;
 
     return () => {
       loop.stop();
       gameLoopRef.current = null;
     };
-  }, [handleStateUpdate]);
+  }, [handleStateUpdate, handleLoopError]);
 
   const applyNewState = useCallback(newState => {
     setGameState(newState);
@@ -125,8 +168,7 @@ export function useGameState() {
 
   const resetGameState = useCallback(() => {
     const currentSettings = settingsRef.current;
-    seed(currentSettings.seed ?? DEFAULT_CONFIG.seed);
-    const freshState = initializeGame(currentSettings);
+    const freshState = createGameStateFromSettings(currentSettings);
     applyNewState(freshState);
   }, [applyNewState]);
 
@@ -141,8 +183,7 @@ export function useGameState() {
         merged.seed !== prevSettings.seed;
 
       if (requiresReinit) {
-        seed(merged.seed ?? DEFAULT_CONFIG.seed);
-        const freshState = initializeGame(merged);
+        const freshState = createGameStateFromSettings(merged);
         applyNewState(freshState);
       } else {
         setGameState(prevState => {

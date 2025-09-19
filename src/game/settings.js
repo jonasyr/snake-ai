@@ -4,7 +4,7 @@
  */
 
 import { DEFAULT_CONFIG, STORAGE_KEYS } from '../utils/constants.js';
-import { isValidGameConfig } from '../utils/guards.js';
+import { validateGameConfig } from '../utils/guards.js';
 
 function sanitizeSettings(settings) {
   const merged = { ...DEFAULT_CONFIG, ...settings };
@@ -41,9 +41,12 @@ export function loadSettings() {
     if (stored) {
       const parsed = JSON.parse(stored);
       const merged = sanitizeSettings(parsed);
-      if (isValidGameConfig(merged)) {
+      const validation = validateGameConfig(merged);
+      if (validation.valid) {
         return merged;
       }
+
+      console.warn('Loaded settings failed validation:', validation.errors, parsed);
     }
   } catch (error) {
     console.warn('Failed to load settings:', error);
@@ -60,8 +63,9 @@ export function saveSettings(settings) {
   try {
     const sanitized = sanitizeSettings(settings);
 
-    if (!isValidGameConfig(sanitized)) {
-      console.warn('Attempted to save invalid settings:', settings);
+    const validation = validateGameConfig(sanitized);
+    if (!validation.valid) {
+      console.warn('Attempted to save invalid settings:', validation.errors, settings);
       return;
     }
 
@@ -135,10 +139,13 @@ export function importSettings(jsonString) {
     const settings = JSON.parse(jsonString);
     // Validate required fields
     const sanitized = sanitizeSettings(settings);
-    if (isValidGameConfig(sanitized)) {
+    const validation = validateGameConfig(sanitized);
+    if (validation.valid) {
       saveSettings(sanitized);
       return sanitized;
     }
+
+    console.warn('Rejected imported settings due to validation errors:', validation.errors, settings);
   } catch (error) {
     console.warn('Failed to import settings:', error);
   }
