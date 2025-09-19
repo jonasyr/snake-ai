@@ -1,13 +1,23 @@
 {
-  "name": "snake-hamiltonian",
+  "name": "snake-hamiltonian-refactored",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
+  "description": "AI Snake game with Hamiltonian cycle pathfinding and safe shortcuts",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage",
+    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
+    "lint:fix": "eslint . --ext js,jsx --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "type-check": "jsdoc -t templates/haruki -d docs src/**/*.js",
+    "simulate": "node scripts/simulate.js",
+    "prepare": "husky install"
   },
   "dependencies": {
     "lucide-react": "^0.541.0",
@@ -17,14 +27,38 @@
   "devDependencies": {
     "@eslint/js": "^9.33.0",
     "@tailwindcss/vite": "^4.1.12",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.4.2",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^5.0.0",
+    "@vitest/coverage-v8": "^1.3.1",
+    "@vitest/ui": "^1.3.1",
     "eslint": "^9.33.0",
+    "eslint-plugin-react": "^7.33.2",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^16.3.0",
+    "husky": "^9.0.11",
+    "jsdom": "^24.0.0",
+    "lint-staged": "^15.2.2",
+    "prettier": "^3.2.5",
     "tailwindcss": "^4.1.12",
-    "vite": "^7.1.2"
+    "vite": "^7.1.2",
+    "vitest": "^1.3.1"
+  },
+  "lint-staged": {
+    "*.{js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,css,md}": [
+      "prettier --write"
+    ]
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
