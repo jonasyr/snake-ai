@@ -7,7 +7,7 @@ import { createSnake, moveSnake, getHead, getTail, getLength, normalizeSnake } f
 import { spawnFruit, isFruitAt } from './fruit.js';
 import { generateHamiltonianCycle } from './hamiltonian.js';
 import { checkCollision } from './collision.js';
-import { planPath } from './shortcuts.js';
+import { ensurePathfindingStrategy } from './pathfinding/index.js';
 import { GAME_STATUS, MOVE_RESULT } from './types.js';
 import { DEFAULT_CONFIG } from '../utils/constants.js';
 import { createObjectPool } from '../utils/collections.js';
@@ -106,6 +106,31 @@ function cloneState(source) {
   return clone;
 }
 
+/**
+ * Compute the next cell along the Hamiltonian cycle.
+ *
+ * @param {Object} gameState - Game state containing cycle data.
+ * @returns {number|null} Next cell index or null when unavailable.
+ */
+function getCycleFallbackMove(gameState) {
+  if (!gameState?.cycle || !gameState?.cycleIndex) {
+    return null;
+  }
+
+  const headCell = getHead(gameState.snake);
+  if (!Number.isInteger(headCell)) {
+    return null;
+  }
+
+  const headPos = gameState.cycleIndex.get(headCell);
+  if (headPos === undefined) {
+    return gameState.cycle?.[0] ?? null;
+  }
+
+  const nextPos = (headPos + 1) % gameState.cycle.length;
+  return gameState.cycle?.[nextPos] ?? null;
+}
+
 export function releaseGameState(state) {
   if (!state) {
     return;
@@ -169,7 +194,7 @@ export function initializeGame(config = DEFAULT_CONFIG) {
  * @param {Object} gameState - Current game state
  * @returns {Object} New game state and move result
  */
-export function gameTick(gameState) {
+export async function gameTick(gameState) {
   if (gameState.status !== GAME_STATUS.PLAYING) {
     return {
       state: gameState,
@@ -210,18 +235,54 @@ export function gameTick(gameState) {
   }
 
   // Plan next move
-  const pathPlan = planPath(workingState, workingState.config);
-  const nextCell = pathPlan.nextMove;
+  let pathPlan;
+  try {
+    const manager = await ensurePathfindingStrategy(workingState, {
+      algorithm: workingState.config?.pathfindingAlgorithm,
+      config: {
+        shortcutsEnabled: workingState.config?.shortcutsEnabled,
+        safetyBuffer: workingState.config?.safetyBuffer,
+        lateGameLock: workingState.config?.lateGameLock,
+        minShortcutWindow: workingState.config?.minShortcutWindow,
+      },
+      forceInitialize: workingState.moves === 0,
+    });
+
+    pathPlan = await manager.planMove(workingState, {
+      shortcutsEnabled: workingState.config?.shortcutsEnabled,
+    });
+  } catch (error) {
+    console.error('Pathfinding error encountered during game tick.', {
+      error,
+      moves: workingState.moves,
+      status: workingState.status,
+    });
+    pathPlan = null;
+  }
+
+  let nextCell = pathPlan?.nextMove;
 
   if (!isValidCellIndex(nextCell, totalCells)) {
-    console.error('Planner generated invalid target cell.', {
-      nextCell,
-      totalCells,
-      pathPlan,
-    });
-    return {
-      state: workingState,
-      result: { valid: false, reason: 'Planner generated invalid target cell' },
+    const fallbackCell = getCycleFallbackMove(workingState);
+
+    if (!isValidCellIndex(fallbackCell, totalCells)) {
+      console.error('Planner generated invalid target cell.', {
+        nextCell,
+        totalCells,
+        pathPlan,
+      });
+      return {
+        state: workingState,
+        result: { valid: false, reason: 'Planner generated invalid target cell' },
+      };
+    }
+
+    nextCell = fallbackCell;
+    pathPlan = {
+      nextMove: fallbackCell,
+      isShortcut: false,
+      reason: 'Fallback move - planner invalid output',
+      shortcutInfo: null,
     };
   }
 

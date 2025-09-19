@@ -52,7 +52,7 @@ function normalizeBoolean(value, defaultValue) {
  * @param {number} [options.maxTicks=Infinity] - Maximum number of ticks to run.
  * @returns {Object} Result of the game simulation.
  */
-export function runGame(configOverrides = {}, options = {}) {
+export async function runGame(configOverrides = {}, options = {}) {
   const { maxTicks = Infinity } = options;
   const config = normalizeConfig(configOverrides);
   const rngSeed = config.seed ?? DEFAULT_CONFIG.seed;
@@ -66,7 +66,7 @@ export function runGame(configOverrides = {}, options = {}) {
   let tickCount = 0;
 
   while (state.status === GAME_STATUS.PLAYING && tickCount < maxTicks) {
-    const result = gameTick(state);
+    const result = await gameTick(state);
     state = result.state;
     tickCount += 1;
 
@@ -101,7 +101,7 @@ export function runGame(configOverrides = {}, options = {}) {
  * @param {Function} [params.onProgress] - Progress callback invoked after each game.
  * @returns {{summary: Object, runs: Object[] | undefined}} Aggregated stats and optional run data.
  */
-export function simulateGames(params = {}) {
+export async function simulateGames(params = {}) {
   const {
     games = 1,
     config: configOverrides = {},
@@ -139,7 +139,7 @@ export function simulateGames(params = {}) {
 
   for (let i = 0; i < totalGames; i += 1) {
     const configForGame = prepareConfig(baseConfig, i, useUniqueSeeds);
-    const result = runGame(configForGame, runOptions);
+    const result = await runGame(configForGame, runOptions);
 
     totals.moves += result.stats.moves;
     totals.score += result.stats.score;

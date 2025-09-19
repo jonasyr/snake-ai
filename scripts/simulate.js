@@ -90,7 +90,7 @@ function formatMs(value) {
  * Entry point that parses CLI arguments, runs simulations, and reports results
  * either as formatted text or JSON.
  */
-function main() {
+async function main() {
   const argv = process.argv.slice(2);
   const args = parseArgs(argv);
 
@@ -130,7 +130,7 @@ function main() {
     config.minShortcutWindow = toInteger(args.minShortcutWindow, DEFAULT_CONFIG.minShortcutWindow);
   }
 
-  const { summary, runs } = simulateGames({
+  const { summary, runs } = await simulateGames({
     games: gameCount,
     config,
     uniqueSeeds,
@@ -174,4 +174,4 @@ function main() {
   }
 }
 
-main();
+await main();
