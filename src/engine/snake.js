@@ -6,38 +6,206 @@
 import { isValidSnakeBody } from '../utils/guards.js';
 
 /**
- * Creates a new snake state
- * @param {number} startCell - Starting cell index
- * @returns {Object} Snake state
+ * Symbol used to hide internal snake state details from consumers.
+ * @type {symbol}
  */
-export function createSnake(startCell) {
-  return {
-    body: [startCell],
-    occupied: new Set([startCell]),
-  };
+const INTERNAL_STATE = Symbol('snakeInternalState');
+
+/**
+ * Default buffer size used when capacity is not explicitly provided.
+ * @type {number}
+ */
+const DEFAULT_BUFFER_CAPACITY = 512;
+
+/**
+ * Create a public snake view backed by an internal state descriptor.
+ * @param {Object} state - Internal snake state descriptor
+ * @returns {Object} Snake view exposed to the rest of the engine
+ */
+function createSnakeView(state) {
+  const snakeView = {};
+
+  Object.defineProperty(snakeView, INTERNAL_STATE, {
+    value: {
+      buffer: state.buffer,
+      capacity: state.capacity,
+      headIndex: state.headIndex,
+      length: state.length,
+      occupied: state.occupied,
+      bodyCache: state.bodyCache ?? null,
+      cacheValid: Boolean(state.cacheValid && state.bodyCache),
+    },
+    enumerable: false,
+    writable: false,
+  });
+
+  Object.defineProperty(snakeView, 'occupied', {
+    value: state.occupied,
+    enumerable: true,
+    writable: false,
+  });
+
+  Object.defineProperty(snakeView, 'body', {
+    enumerable: true,
+    get() {
+      const internal = snakeView[INTERNAL_STATE];
+
+      if (!internal.cacheValid) {
+        const { buffer, capacity, headIndex, length } = internal;
+        const result = new Array(length);
+
+        for (let i = 0; i < length; i += 1) {
+          result[i] = buffer[(headIndex + i) % capacity];
+        }
+
+        internal.bodyCache = result;
+        internal.cacheValid = true;
+      }
+
+      return internal.bodyCache;
+    },
+  });
+
+  return snakeView;
+}
+
+function createViewFromBody(body, occupied, capacityHint) {
+  const length = Array.isArray(body) ? body.length : 0;
+  const capacity = Math.max(capacityHint, length || DEFAULT_BUFFER_CAPACITY);
+  const buffer = new Int32Array(capacity);
+
+  for (let i = 0; i < capacity; i += 1) {
+    buffer[i] = -1;
+  }
+
+  for (let i = 0; i < length; i += 1) {
+    buffer[i] = body[i];
+  }
+
+  return createSnakeView({
+    buffer,
+    capacity,
+    headIndex: 0,
+    length,
+    occupied,
+    bodyCache: Array.from(body),
+    cacheValid: true,
+  });
 }
 
 /**
- * Move snake to new head position
+ * Retrieve the internal state descriptor from a snake view.
+ * @param {Object} snake - Snake view
+ * @returns {Object} Internal state descriptor
+ */
+function getInternalState(snake) {
+  if (snake?.[INTERNAL_STATE]) {
+    return snake[INTERNAL_STATE];
+  }
+
+  const normalized = normalizeSnake(snake);
+  if (normalized?.[INTERNAL_STATE]) {
+    return normalized[INTERNAL_STATE];
+  }
+
+  throw new Error('Invalid snake instance provided.');
+}
+
+/**
+ * Creates a new snake state using a circular buffer for body tracking.
+ * @param {number} startCell - Starting cell index
+ * @param {number} [capacity=DEFAULT_BUFFER_CAPACITY] - Maximum supported length
+ * @returns {Object} Snake state
+ */
+export function createSnake(startCell, capacity = DEFAULT_BUFFER_CAPACITY) {
+  const maxLength = Number.isInteger(capacity) && capacity > 0 ? capacity : DEFAULT_BUFFER_CAPACITY;
+  const buffer = new Int32Array(maxLength);
+
+  for (let i = 0; i < maxLength; i += 1) {
+    buffer[i] = -1;
+  }
+
+  buffer[0] = startCell;
+
+  const occupied = new Set([startCell]);
+
+  return createSnakeView({
+    buffer,
+    capacity: maxLength,
+    headIndex: 0,
+    length: 1,
+    occupied,
+    bodyCache: [startCell],
+    cacheValid: true,
+  });
+}
+
+/**
+ * Normalize legacy snake structures into optimized views.
+ * @param {Object} snake - Snake-like object
+ * @param {number} capacityHint - Estimated maximum capacity
+ * @returns {Object} Normalized snake view
+ */
+export function normalizeSnake(snake, capacityHint = DEFAULT_BUFFER_CAPACITY) {
+  if (snake?.[INTERNAL_STATE]) {
+    return snake;
+  }
+
+  if (!snake || !Array.isArray(snake.body)) {
+    throw new Error('Invalid snake instance provided.');
+  }
+
+  const occupied = snake.occupied instanceof Set
+    ? new Set(snake.occupied)
+    : new Set(snake.body);
+
+  return createViewFromBody(snake.body, occupied, capacityHint);
+}
+
+/**
+ * Move snake to new head position using the circular buffer.
  * @param {Object} snake - Current snake state
  * @param {number} newHead - New head cell index
  * @param {boolean} grow - Whether to grow (ate fruit)
  * @returns {Object} New snake state
  */
 export function moveSnake(snake, newHead, grow = false) {
-  const newBody = [newHead, ...snake.body];
-  const newOccupied = new Set(snake.occupied);
-  newOccupied.add(newHead);
+  const internal = getInternalState(snake);
+  const {
+    buffer,
+    capacity,
+    headIndex,
+    length,
+    occupied,
+  } = internal;
 
-  if (!grow) {
-    const tail = newBody.pop();
-    newOccupied.delete(tail);
+  const updatedOccupied = new Set(occupied);
+  let newLength = length;
+
+  if (!grow && length > 0) {
+    const tailIndex = (headIndex + length - 1) % capacity;
+    const tailCell = buffer[tailIndex];
+    updatedOccupied.delete(tailCell);
   }
 
-  return {
-    body: newBody,
-    occupied: newOccupied,
-  };
+  updatedOccupied.add(newHead);
+
+  if (grow) {
+    newLength = Math.min(length + 1, capacity);
+  }
+
+  const nextHeadIndex = (headIndex - 1 + capacity) % capacity;
+  buffer[nextHeadIndex] = newHead;
+
+  return createSnakeView({
+    buffer,
+    capacity,
+    headIndex: nextHeadIndex,
+    length: newLength,
+    occupied: updatedOccupied,
+    bodyCache: null,
+    cacheValid: false,
+  });
 }
 
 /**
@@ -49,16 +217,14 @@ export function moveSnake(snake, newHead, grow = false) {
  */
 export function wouldCollide(snake, newHead, willEat = false) {
   if (!snake.occupied.has(newHead)) {
-    return false; // No collision
+    return false;
   }
 
-  // If eating, tail doesn't move, so collision with tail is fatal
   if (willEat) {
     return true;
   }
 
-  // If not eating, collision only fatal if not with tail
-  const tail = snake.body[snake.body.length - 1];
+  const tail = getTail(snake);
   return newHead !== tail;
 }
 
@@ -68,7 +234,8 @@ export function wouldCollide(snake, newHead, willEat = false) {
  * @returns {number} Head cell index
  */
 export function getHead(snake) {
-  return snake.body[0];
+  const internal = getInternalState(snake);
+  return internal.buffer[internal.headIndex];
 }
 
 /**
@@ -77,7 +244,13 @@ export function getHead(snake) {
  * @returns {number} Tail cell index
  */
 export function getTail(snake) {
-  return snake.body[snake.body.length - 1];
+  const internal = getInternalState(snake);
+  if (internal.length <= 0) {
+    return -1;
+  }
+
+  const tailIndex = (internal.headIndex + internal.length - 1) % internal.capacity;
+  return internal.buffer[tailIndex];
 }
 
 /**
@@ -96,7 +269,7 @@ export function occupiesCell(snake, cell) {
  * @returns {number} Snake length
  */
 export function getLength(snake) {
-  return snake.body.length;
+  return getInternalState(snake).length;
 }
 
 /**
@@ -107,10 +280,29 @@ export function getLength(snake) {
  */
 export function validateSnake(snake, totalCells) {
   if (!snake || typeof snake !== 'object') return false;
-  if (!Array.isArray(snake.body) || !(snake.occupied instanceof Set)) return false;
-  if (snake.body.length !== snake.occupied.size) return false;
+  if (!(snake.occupied instanceof Set)) return false;
 
-  return (
-    isValidSnakeBody(snake.body, totalCells) && snake.body.every(cell => snake.occupied.has(cell))
-  );
+  const internal = snake[INTERNAL_STATE];
+  if (!internal) return false;
+
+  if (internal.length !== snake.occupied.size) {
+    return false;
+  }
+
+  const bodySegments = snake.body;
+  if (!Array.isArray(bodySegments)) {
+    return false;
+  }
+
+  if (!isValidSnakeBody(bodySegments, totalCells)) {
+    return false;
+  }
+
+  for (const cell of bodySegments) {
+    if (!snake.occupied.has(cell)) {
+      return false;
+    }
+  }
+
+  return true;
 }

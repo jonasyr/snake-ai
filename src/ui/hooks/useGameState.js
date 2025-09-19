@@ -8,6 +8,13 @@ import { DEFAULT_CONFIG } from '../../utils/constants.js';
 import { validateGameConfig } from '../../utils/guards.js';
 import { cyclicDistance } from '../../utils/math.js';
 
+/**
+ * Safely load persisted settings from storage, falling back to defaults when
+ * serialization errors or restricted environments (such as SSR) prevent
+ * access.
+ *
+ * @returns {typeof DEFAULT_CONFIG} Stored or default configuration.
+ */
 function safeLoadSettings() {
   try {
     return loadSettings();
@@ -47,6 +54,14 @@ function createGameStateFromSettings(settings) {
   }
 }
 
+/**
+ * Derive user-friendly statistics from a raw engine state. The returned values
+ * power analytics panels without leaking internal engine data structures into
+ * the UI layer.
+ *
+ * @param {import('../../engine/gameEngine.js').GameState} state - Current engine state.
+ * @returns {{moves:number,length:number,score:number,free:number,distHeadApple:number,distHeadTail:number,shortcut:boolean,efficiency:number}} Aggregated statistics.
+ */
 function computeStats(state) {
   if (!state) {
     return {
@@ -102,6 +117,24 @@ function computeStats(state) {
   };
 }
 
+/**
+ * Primary React hook that owns the lifecycle of the game engine, exposes
+ * memoized callbacks for UI interaction, and synchronizes settings persistence.
+ * The hook encapsulates the imperative {@link GameLoop} class while presenting
+ * a declarative interface tailored for components.
+ *
+ * @returns {{
+ *   gameState: object,
+ *   stats: object,
+ *   settings: object,
+ *   updateSettings: Function,
+ *   startGame: Function,
+ *   pauseGame: Function,
+ *   stepGame: Function,
+ *   resetGameState: Function,
+ *   toggleGame: Function,
+ * }} Game control API consumed by the UI layer.
+ */
 export function useGameState() {
   const initialSettingsRef = useRef(safeLoadSettings());
   const settingsRef = useRef(initialSettingsRef.current);

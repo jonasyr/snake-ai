@@ -4,6 +4,52 @@
  */
 
 import { cyclicDistance } from '../utils/math.js';
+import { getHead, getTail, getLength } from './snake.js';
+
+const EMPTY_ARRAY = Object.freeze([]);
+const neighborCache = new WeakMap();
+
+function getNeighborTable(gameState) {
+  const config = gameState?.config;
+  if (!config) {
+    return null;
+  }
+
+  let table = neighborCache.get(config);
+  if (table) {
+    return table;
+  }
+
+  const rows = Number.isInteger(config.rows) ? config.rows : 0;
+  const cols = Number.isInteger(config.cols) ? config.cols : 0;
+  const total = rows * cols;
+
+  table = new Array(total);
+
+  for (let cell = 0; cell < total; cell += 1) {
+    const row = Math.floor(cell / cols);
+    const col = cell % cols;
+    const neighbors = [];
+
+    if (row > 0) neighbors.push(cell - cols);
+    if (row < rows - 1) neighbors.push(cell + cols);
+    if (col > 0) neighbors.push(cell - 1);
+    if (col < cols - 1) neighbors.push(cell + 1);
+
+    table[cell] = neighbors;
+  }
+
+  neighborCache.set(config, table);
+  return table;
+}
+
+function getNeighborCells(cellIndex, gameState) {
+  const table = getNeighborTable(gameState);
+  if (!table || cellIndex < 0 || cellIndex >= table.length) {
+    return EMPTY_ARRAY;
+  }
+  return table[cellIndex] ?? EMPTY_ARRAY;
+}
 
 /**
  * Find safe shortcut moves towards target - matches old version logic
@@ -15,7 +61,7 @@ export function findShortcut(gameState, config) {
   const { snake, fruit, cycle, cycleIndex } = gameState;
   const { safetyBuffer = 2, lateGameLock = 4 } = config;
 
-  if (!snake?.body || snake.body.length === 0 || !cycle || !cycleIndex) {
+  if (!snake || getLength(snake) === 0 || !cycle || !cycleIndex) {
     return null;
   }
 
@@ -25,8 +71,8 @@ export function findShortcut(gameState, config) {
     return null;
   }
 
-  const headCell = snake.body[0];
-  const tailCell = snake.body[snake.body.length - 1];
+  const headCell = getHead(snake);
+  const tailCell = getTail(snake);
   const headCyclePos = cycleIndex.get(headCell);
   const tailCyclePos = cycleIndex.get(tailCell);
   const fruitCyclePos = cycleIndex.get(fruit);
@@ -37,9 +83,9 @@ export function findShortcut(gameState, config) {
 
   // Calculate safe window based on current snake configuration
   const cycleLength = cycle.length;
-  const snakeLength = snake.body.length;
+  const snakeLength = getLength(snake);
   const tailDistance = cyclicDistance(headCyclePos, tailCyclePos, cycleLength);
-  
+
   // ✅ Match the old version's window calculation exactly
   const bufferToUse = snakeLength <= 3 ? 0 : safetyBuffer;
   const safeWindow = Math.max(0, tailDistance - bufferToUse);
@@ -52,14 +98,14 @@ export function findShortcut(gameState, config) {
     return null;
   }
 
-  // Get safe neighboring cells - use same logic as old version
-  const neighbors = getSafeNeighborsFixed(headCell, gameState);
+  const neighbors = getNeighborCells(headCell, gameState);
 
   let bestShortcut = null;
   let bestDistance = cyclicDistance((headCyclePos + 1) % cycleLength, fruitCyclePos, cycleLength);
   let bestForwardJump = Infinity;
 
-  for (const neighbor of neighbors) {
+  for (let i = 0; i < neighbors.length; i += 1) {
+    const neighbor = neighbors[i];
     const neighborCyclePos = cycleIndex.get(neighbor);
     if (neighborCyclePos === undefined) continue;
 
@@ -93,43 +139,14 @@ export function findShortcut(gameState, config) {
       };
       bestDistance = distanceToFruit;
       bestForwardJump = forwardJump;
+
+      if (distanceToFruit === 0) {
+        break;
+      }
     }
   }
 
   return bestShortcut;
-}
-
-/**
- * Get safe neighbors - fixed version that matches old logic
- */
-function getSafeNeighborsFixed(cellIndex, gameState) {
-  const { rows, cols } = gameState.config || { rows: 20, cols: 20 };
-  const neighbors = [];
-
-  // Convert cell index to row, col
-  const row = Math.floor(cellIndex / cols);
-  const col = cellIndex % cols;
-
-  // Check all 4 directions
-  const directions = [
-    [-1, 0], // up
-    [1, 0],  // down
-    [0, -1], // left
-    [0, 1],  // right
-  ];
-
-  for (const [dr, dc] of directions) {
-    const newRow = row + dr;
-    const newCol = col + dc;
-
-    // Check bounds
-    if (newRow >= 0 && newRow < rows && newCol >= 0 && newCol < cols) {
-      const neighborCell = newRow * cols + newCol;
-      neighbors.push(neighborCell);
-    }
-  }
-
-  return neighbors;
 }
 
 /**
@@ -170,11 +187,13 @@ export function validateShortcut(fromCell, toCell, gameState, config) {
   }
 
   // Verify we can still reach our tail after this move
-  const tailCell = gameState.snake.body[gameState.snake.body.length - 1];
+  const tailCell = getTail(gameState.snake);
   const tailPos = cycleIndex.get(tailCell);
-  const newTailDistance = cyclicDistance(toPos, tailPos, cycle.length);
+  const newTailDistance = tailPos === undefined
+    ? 0
+    : cyclicDistance(toPos, tailPos, cycle.length);
 
-  if (newTailDistance < gameState.snake.body.length + safetyBuffer) {
+  if (newTailDistance < getLength(gameState.snake) + safetyBuffer) {
     return {
       valid: false,
       reason: 'Would get too close to tail',
@@ -196,7 +215,7 @@ export function validateShortcut(fromCell, toCell, gameState, config) {
  * @returns {Object} Path planning result
  */
 export function planPath(gameState, config) {
-  if (!gameState?.snake?.body || gameState.snake.body.length === 0) {
+  if (!gameState?.snake || getLength(gameState.snake) === 0) {
     console.warn('Invalid game state for path planning');
     return {
       nextMove: 0,
@@ -209,12 +228,14 @@ export function planPath(gameState, config) {
   // ✅ Only try shortcuts if enabled in config
   const shortcutsEnabled = config?.shortcutsEnabled !== false;
   
+  const headCell = getHead(gameState.snake);
+
   if (shortcutsEnabled) {
     const shortcut = findShortcut(gameState, config);
 
     if (shortcut) {
       // Double-check the shortcut is actually safe
-      const validation = validateShortcut(gameState.snake.body[0], shortcut.cell, gameState, config);
+      const validation = validateShortcut(headCell, shortcut.cell, gameState, config);
 
       if (validation.valid) {
         return {
@@ -228,8 +249,6 @@ export function planPath(gameState, config) {
   }
 
   // Follow Hamiltonian cycle
-  const headCell = gameState.snake.body[0];
-  
   if (!gameState.cycleIndex || typeof gameState.cycleIndex.get !== 'function') {
     console.warn('Invalid cycleIndex in game state');
     return {

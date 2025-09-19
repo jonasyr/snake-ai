@@ -8,6 +8,13 @@ import StatsSidebar from './ui/components/StatsSidebar.jsx';
 import KeyboardShortcuts from './ui/components/KeyboardShortcuts.jsx';
 import LoadingScreen from './ui/components/LoadingScreen.jsx';
 
+/**
+ * Root application shell that wires together state hooks, rendering hooks, and
+ * the presentation layer. It centralizes keyboard controls and global view
+ * toggles while delegating rendering to specialized components.
+ *
+ * @returns {JSX.Element} Fully composed Snake AI application view.
+ */
 export default function App() {
   const { gameState, stats, settings, updateSettings, toggleGame, stepGame, resetGameState } = useGameState();
   const { canvasRef, draw } = useCanvas(gameState, settings);
@@ -16,6 +23,7 @@ export default function App() {
   const [showShortcuts, setShowShortcuts] = useState(true);
 
   useEffect(() => {
+    // Provide intuitive keyboard shortcuts for accessibility and power users.
     const handleKeyPress = event => {
       switch (event.key) {
         case ' ':
@@ -43,6 +51,8 @@ export default function App() {
 
   useEffect(() => {
     if (draw) {
+      // Delegate the imperative canvas rendering to the dedicated hook so the
+      // component can remain focused on declarative UI structure.
       draw({ showCycle, showShortcuts });
     }
   }, [draw, showCycle, showShortcuts]);
