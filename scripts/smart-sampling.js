@@ -149,6 +149,11 @@ async function adaptiveSampling(ranges, options = {}) {
   let allResults = [];
   let currentRanges = { ...ranges };
 
+  // Force garbage collection if available
+  if (global.gc) {
+    global.gc();
+  }
+
   // Initial broad sampling
   console.log(`\n📊 Phase 1: Initial broad sampling`);
   let samples = generateLatinHypercubeSamples(currentRanges, initialSamples);
@@ -167,49 +172,102 @@ async function adaptiveSampling(ranges, options = {}) {
       sampleRanges[key] = samples.map(sample => sample[key]);
     }
     
-    // Run the sweep
-    const results = await runShortcutParameterSweep({
-      gamesPerConfig: games,
-      baseConfig: DEFAULT_CONFIG,
-      parameterRanges: sampleRanges,
-      uniqueSeeds: true,
-      outputFile: roundOutputFile,
-      outputFormat: 'json',
-      progressIntervalMs: 10000,
-    });
-    
-    allResults = [...allResults, ...results];
-    
-    if (round < refinementRounds) {
-      // Find top performers
-      const sorted = results.sort((a, b) => {
-        // Sort by completion rate first, then by moves
-        if (Math.abs(a.completionRate - b.completionRate) > 0.01) {
-          return b.completionRate - a.completionRate;
-        }
-        return a.averageMoves - b.averageMoves;
+    // Run the sweep with memory optimization
+    try {
+      const results = await runShortcutParameterSweep({
+        gamesPerConfig: games,
+        baseConfig: DEFAULT_CONFIG,
+        parameterRanges: sampleRanges,
+        uniqueSeeds: true,
+        outputFile: roundOutputFile,
+        outputFormat: 'json',
+        progressIntervalMs: 10000,
       });
       
-      const topPerformers = sorted.slice(0, Math.min(10, Math.floor(samples.length * 0.1)));
+      // Only keep essential data to prevent memory bloat
+      const essentialResults = results.map(r => ({
+        config: r.config,
+        averageMoves: r.averageMoves,
+        completionRate: r.completionRate,
+        round: round
+      }));
       
-      console.log(`\n🏆 Top ${topPerformers.length} performers from round ${round + 1}:`);
-      for (const performer of topPerformers.slice(0, 3)) {
-        console.log(`  - ${performer.averageMoves.toFixed(0)} moves (${(performer.completionRate * 100).toFixed(1)}%)`);
+      allResults = [...allResults, ...essentialResults];
+      
+      // Force garbage collection
+      if (global.gc) {
+        global.gc();
       }
       
-      // Create refined ranges around top performers
-      const refinedRanges = createRefinedRanges(topPerformers, ranges);
-      samples = generateLatinHypercubeSamples(refinedRanges, refinementSamples);
+      if (round < refinementRounds) {
+        // Find top performers (only keep essential data)
+        const sorted = essentialResults
+          .filter(r => r.completionRate >= 0.95)
+          .sort((a, b) => {
+            // Sort by completion rate first, then by moves
+            if (Math.abs(a.completionRate - b.completionRate) > 0.01) {
+              return b.completionRate - a.completionRate;
+            }
+            return a.averageMoves - b.averageMoves;
+          });
+        
+        const topPerformers = sorted.slice(0, Math.min(10, Math.floor(samples.length * 0.2)));
+        
+        if (topPerformers.length === 0) {
+          console.log(`\n⚠️  No successful configurations in round ${round + 1}, using all results`);
+          topPerformers.push(...essentialResults.slice(0, 5));
+        }
+        
+        console.log(`\n🏆 Top ${topPerformers.length} performers from round ${round + 1}:`);
+        for (const performer of topPerformers.slice(0, 3)) {
+          console.log(`  - ${performer.averageMoves.toFixed(0)} moves (${(performer.completionRate * 100).toFixed(1)}%)`);
+        }
+        
+        // Create refined ranges around top performers
+        const refinedRanges = createRefinedRanges(topPerformers, ranges);
+        samples = generateLatinHypercubeSamples(refinedRanges, refinementSamples);
+        
+        // Clear references to help GC
+        essentialResults.length = 0;
+      }
+    } catch (error) {
+      console.error(`❌ Error in round ${round + 1}:`, error.message);
+      break;
     }
   }
   
-  // Final results
+  // Final results - save incrementally to avoid memory issues
   const finalOutputFile = path.join(outputDir, `${prefix}-final-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.json`);
-  fs.writeFileSync(finalOutputFile, JSON.stringify(allResults, null, 2));
+  
+  // Write results in chunks to avoid memory issues with large datasets
+  const chunks = [];
+  const chunkSize = 100;
+  for (let i = 0; i < allResults.length; i += chunkSize) {
+    chunks.push(allResults.slice(i, i + chunkSize));
+  }
+  
+  // Write final results
+  const finalResults = {
+    metadata: {
+      totalRounds: refinementRounds + 1,
+      totalConfigurations: allResults.length,
+      timestamp: new Date().toISOString()
+    },
+    results: allResults
+  };
+  
+  fs.writeFileSync(finalOutputFile, JSON.stringify(finalResults, null, 2));
   
   console.log(`\n✅ Adaptive sampling complete! Final results: ${finalOutputFile}`);
+  console.log(`📊 Total configurations tested: ${allResults.length}`);
   
-  return allResults;
+  // Force final cleanup
+  allResults.length = 0;
+  if (global.gc) {
+    global.gc();
+  }
+  
+  return finalResults.results;
 }
 
 /**

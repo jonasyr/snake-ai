@@ -20,6 +20,8 @@
     "simulate:sweep": "node scripts/shortcut-sweep.js",
     "explore": "node scripts/comprehensive-sweep.js",
     "sample": "node scripts/smart-sampling.js",
+    "efficient": "node scripts/memory-efficient-sampling.js",
+    "memory": "node scripts/run-with-memory.js",
     "analyze": "node scripts/analyze-results.js",
     "prepare": "husky install"
   },
