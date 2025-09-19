@@ -115,10 +115,20 @@ export function useCanvas(gameState, settings = DEFAULT_CONFIG) {
   const rafRef = useRef(null);
   const cleanupRef = useRef(null);
   const drawOptionsRef = useRef({ showCycle: true, showShortcuts: true });
+  const latestStateRef = useRef(gameState);
 
   const rows = settings?.rows ?? DEFAULT_CONFIG.rows;
   const cols = settings?.cols ?? DEFAULT_CONFIG.cols;
   const cellSize = settings?.cellSize ?? DEFAULT_CONFIG.cellSize;
+  const dimensionsRef = useRef({ rows, cols, cellSize });
+
+  useEffect(() => {
+    latestStateRef.current = gameState;
+  }, [gameState]);
+
+  useEffect(() => {
+    dimensionsRef.current = { rows, cols, cellSize };
+  }, [rows, cols, cellSize]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -172,91 +182,94 @@ export function useCanvas(gameState, settings = DEFAULT_CONFIG) {
     return cleanup;
   }, [rows, cols, cellSize]);
 
-  const render = useCallback(
-    (options = {}) => {
-      const ctx = ctxRef.current;
-      if (!ctx) return;
+  const stableRender = useCallback(() => {
+    const ctx = ctxRef.current;
+    if (!ctx) return;
 
-      const appliedOptions = {
-        ...drawOptionsRef.current,
-        ...options,
-      };
-      drawOptionsRef.current = appliedOptions;
+    const { rows: currentRows, cols: currentCols, cellSize: currentCellSize } = dimensionsRef.current;
+    const appliedOptions = drawOptionsRef.current;
+    const width = currentCols * currentCellSize;
+    const height = currentRows * currentCellSize;
 
-      const width = cols * cellSize;
-      const height = rows * cellSize;
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = COLORS.BACKGROUND;
+    ctx.fillRect(0, 0, width, height);
 
-      ctx.clearRect(0, 0, width, height);
-      ctx.fillStyle = COLORS.BACKGROUND;
-      ctx.fillRect(0, 0, width, height);
+    drawGrid(ctx, currentRows, currentCols, currentCellSize);
 
-      drawGrid(ctx, rows, cols, cellSize);
+    const currentState = latestStateRef.current;
+    if (!currentState) {
+      return;
+    }
 
-      if (!gameState) return;
+    const { cycle, snake, fruit, plannerData } = currentState;
+    const snakeBody = snake?.body ?? [];
+    const snakeHead = snakeBody[0];
 
-      const { cycle, snake, fruit, plannerData } = gameState;
-      const snakeBody = snake?.body ?? [];
-      const snakeHead = snakeBody[0];
+    if (appliedOptions.showCycle) {
+      drawCycle(ctx, cycle, currentCols, currentCellSize);
+    }
 
-      if (appliedOptions.showCycle) {
-        drawCycle(ctx, cycle, cols, cellSize);
-      }
+    if (fruit !== undefined && fruit >= 0) {
+      const [fruitRow, fruitCol] = indexToPosition(fruit, currentCols);
+      ctx.fillStyle = COLORS.FRUIT;
+      ctx.beginPath();
+      ctx.arc(
+        fruitCol * currentCellSize + currentCellSize / 2,
+        fruitRow * currentCellSize + currentCellSize / 2,
+        Math.max(currentCellSize * 0.3, 4),
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
+    }
 
-      if (fruit !== undefined && fruit >= 0) {
-        const [fruitRow, fruitCol] = indexToPosition(fruit, cols);
-        ctx.fillStyle = COLORS.FRUIT;
-        ctx.beginPath();
-        ctx.arc(
-          fruitCol * cellSize + cellSize / 2,
-          fruitRow * cellSize + cellSize / 2,
-          Math.max(cellSize * 0.3, 4),
-          0,
-          Math.PI * 2
-        );
-        ctx.fill();
-      }
+    if (appliedOptions.showShortcuts && plannerData?.plannedPath?.length) {
+      drawPlannedPath(ctx, snakeHead, plannerData.plannedPath, currentCols, currentCellSize);
+    }
 
-      if (appliedOptions.showShortcuts && plannerData?.plannedPath?.length) {
-        drawPlannedPath(ctx, snakeHead, plannerData.plannedPath, cols, cellSize);
-      }
+    if (appliedOptions.showShortcuts && plannerData?.shortcutEdge) {
+      drawShortcut(ctx, plannerData.shortcutEdge, currentCols, currentCellSize);
+    }
 
-      if (appliedOptions.showShortcuts && plannerData?.shortcutEdge) {
-        drawShortcut(ctx, plannerData.shortcutEdge, cols, cellSize);
-      }
-
-      if (snakeBody.length) {
-        drawCells(ctx, snakeBody.slice(1), cols, cellSize, COLORS.SNAKE_BODY, 4);
-        drawCells(ctx, [snakeHead], cols, cellSize, COLORS.SNAKE_HEAD, 2);
-      }
-    },
-    [cols, rows, cellSize, gameState]
-  );
+    if (snakeBody.length) {
+      drawCells(ctx, snakeBody.slice(1), currentCols, currentCellSize, COLORS.SNAKE_BODY, 4);
+      drawCells(ctx, [snakeHead], currentCols, currentCellSize, COLORS.SNAKE_HEAD, 2);
+    }
+  }, []);
 
   useEffect(() => {
-    const cancelRaf = () => {
+    if (rafRef.current !== null) {
+      CANCEL_RAF_FALLBACK(rafRef.current);
+      rafRef.current = null;
+    }
+
+    let mounted = true;
+
+    const renderLoop = () => {
+      try {
+        stableRender();
+      } catch (error) {
+        console.error('Canvas render failed:', error);
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      rafRef.current = RAF_FALLBACK(renderLoop);
+    };
+
+    rafRef.current = RAF_FALLBACK(renderLoop);
+
+    return () => {
+      mounted = false;
       if (rafRef.current !== null) {
         CANCEL_RAF_FALLBACK(rafRef.current);
         rafRef.current = null;
       }
     };
-
-    cancelRaf();
-
-    if (!ctxRef.current) {
-      return cancelRaf;
-    }
-
-    rafRef.current = RAF_FALLBACK(() => {
-      try {
-        render();
-      } catch (error) {
-        console.error('Canvas render failed:', error);
-        cancelRaf();
-      }
-    });
-
-    return cancelRaf;
-  }, [render]);
+  }, [stableRender]);
 
   useEffect(() => () => {
     if (cleanupRef.current) {
@@ -268,8 +281,19 @@ export function useCanvas(gameState, settings = DEFAULT_CONFIG) {
     }
   }, []);
 
+  const draw = useCallback(
+    (options = {}) => {
+      drawOptionsRef.current = {
+        ...drawOptionsRef.current,
+        ...options,
+      };
+      stableRender();
+    },
+    [stableRender]
+  );
+
   return {
     canvasRef,
-    draw: render,
+    draw,
   };
 }
