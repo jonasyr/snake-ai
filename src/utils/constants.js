@@ -15,6 +15,7 @@ export const DEFAULT_CONFIG = {
   scorePerFruit: 10,
   shortcutBonus: 5,
   cellSize: 24,
+  pathfindingAlgorithm: 'hamiltonian',
 };
 
 // Keep uppercase versions for internal engine constants
@@ -30,6 +31,7 @@ export const ENGINE_CONSTANTS = {
   MIN_SHORTCUT_WINDOW: 2,
   SCORE_PER_FRUIT: 10,
   SHORTCUT_BONUS: 5,
+  PATHFINDING_ALGORITHM: 'hamiltonian',
 };
 
 export const DIRECTIONS = {

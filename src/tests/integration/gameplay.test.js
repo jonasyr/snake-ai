@@ -10,7 +10,7 @@ import { GAME_STATUS } from '../../engine/types.js';
 import { indexToPosition } from '../../utils/math.js';
 
 describe('Gameplay Integration', () => {
-  it('should run 1000 ticks without errors on small grid', () => {
+  it('should run 1000 ticks without errors on small grid', async () => {
     seed(42);
     let state = initializeGame({ rows: 8, cols: 8, seed: 42 });
     state = setGameStatus(state, GAME_STATUS.PLAYING);
@@ -19,7 +19,7 @@ describe('Gameplay Integration', () => {
     const maxTicks = 1000;
 
     while (tickCount < maxTicks && state.status === GAME_STATUS.PLAYING) {
-      const result = gameTick(state);
+      const result = await gameTick(state);
 
       expect(result.result.valid).toBe(true);
       expect(result.state.snake.body.length).toBeGreaterThan(0);
@@ -35,14 +35,14 @@ describe('Gameplay Integration', () => {
     );
   });
 
-  it('should maintain game invariants throughout play', () => {
+  it('should maintain game invariants throughout play', async () => {
     seed(123);
     let state = initializeGame({ rows: 6, cols: 6, seed: 123 });
     state = setGameStatus(state, GAME_STATUS.PLAYING);
 
     for (let i = 0; i < 50; i++) {
       const previousHead = state.snake.body[0];
-      const result = gameTick(state);
+      const result = await gameTick(state);
       if (!result.result.valid) break;
 
       state = result.state;
@@ -70,7 +70,7 @@ describe('Gameplay Integration', () => {
     }
   });
 
-  it('should complete a full game without breaking cycle invariants', () => {
+  it('should complete a full game without breaking cycle invariants', async () => {
     seed(2024);
     const config = { rows: 8, cols: 8, seed: 2024, shortcutsEnabled: true };
     let state = initializeGame(config);
@@ -80,7 +80,7 @@ describe('Gameplay Integration', () => {
     let iterations = 0;
 
     while (state.status === GAME_STATUS.PLAYING && iterations < maxIterations) {
-      const result = gameTick(state);
+      const result = await gameTick(state);
       expect(result.result.valid).toBe(true);
       expect(result.state.cycleIndex).toBeInstanceOf(Map);
       expect(result.state.snake.occupied).toBeInstanceOf(Set);

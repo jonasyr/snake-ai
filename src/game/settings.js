@@ -28,6 +28,10 @@ function sanitizeSettings(settings) {
     sanitized.shortcutsEnabled = DEFAULT_CONFIG.shortcutsEnabled;
   }
 
+  if (typeof merged.pathfindingAlgorithm !== 'string') {
+    sanitized.pathfindingAlgorithm = DEFAULT_CONFIG.pathfindingAlgorithm;
+  }
+
   return sanitized;
 }
 
