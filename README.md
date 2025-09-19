@@ -1,10 +1,9 @@
-<!-- FILE: README.md -->
-
 # Snake AI - Hamiltonian Cycle with Smart Shortcuts
 
 A modern, highly optimized Snake game featuring autonomous AI that uses Hamiltonian cycle pathfinding with intelligent shortcuts. Built with React and a pure functional game engine.
 
 ![Snake AI Demo](docs/demo.gif)
+
 
 ## ✨ Features
 
