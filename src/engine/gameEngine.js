@@ -10,6 +10,7 @@ import { checkCollision } from './collision.js';
 import { planPath } from './shortcuts.js';
 import { GAME_STATUS, MOVE_RESULT } from './types.js';
 import { DEFAULT_CONFIG } from '../utils/constants.js';
+import { isValidCellIndex, validateGameConfig } from '../utils/guards.js';
 
 /**
  * Initialize a new game state
@@ -17,7 +18,18 @@ import { DEFAULT_CONFIG } from '../utils/constants.js';
  * @returns {Object} Initial game state
  */
 export function initializeGame(config = DEFAULT_CONFIG) {
-  const { rows, cols, seed, ...otherConfig } = { ...DEFAULT_CONFIG, ...config };
+  const { rows, cols, seed: rawSeed, ...otherConfig } = { ...DEFAULT_CONFIG, ...config };
+
+  const validation = validateGameConfig({ rows, cols, seed: rawSeed });
+
+  if (!validation.valid) {
+    const details = validation.errors.length ? ` Details: ${validation.errors.join('; ')}` : '';
+    throw new Error(`Invalid game configuration provided.${details}`);
+  }
+
+  const seed = Number.isSafeInteger(Math.trunc(rawSeed))
+    ? Math.trunc(rawSeed)
+    : DEFAULT_CONFIG.seed;
 
   // Generate Hamiltonian cycle
   const hamiltonianData = generateHamiltonianCycle(rows, cols);
@@ -76,6 +88,36 @@ export function gameTick(gameState) {
   // Plan next move
   const pathPlan = planPath(gameState, gameState.config);
   const nextCell = pathPlan.nextMove;
+
+  let totalCells = 0;
+  if (Number.isInteger(gameState.cycle?.length)) {
+    totalCells = gameState.cycle.length;
+  } else if (Number.isInteger(gameState.config?.rows) && Number.isInteger(gameState.config?.cols)) {
+    totalCells = gameState.config.rows * gameState.config.cols;
+  }
+
+  if (!Number.isInteger(totalCells) || totalCells <= 0) {
+    console.error('Invalid grid configuration detected during game tick.', {
+      totalCells,
+      config: gameState.config,
+    });
+    return {
+      state: gameState,
+      result: { valid: false, reason: 'Invalid grid configuration' },
+    };
+  }
+
+  if (!isValidCellIndex(nextCell, totalCells)) {
+    console.error('Planner generated invalid target cell.', {
+      nextCell,
+      totalCells,
+      pathPlan,
+    });
+    return {
+      state: gameState,
+      result: { valid: false, reason: 'Planner generated invalid target cell' },
+    };
+  }
 
   // Check collision
   const collision = checkCollision(nextCell, gameState);

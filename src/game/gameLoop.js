@@ -23,11 +23,18 @@ const cancelFrame =
     : clearTimeout;
 
 export class GameLoop {
-  constructor(initialState, onStateChange, config = {}) {
+  constructor(initialState, onStateChange, config = {}, callbacks = {}) {
     // ✅ Don't deep copy - just reference the original state
     this.state = initialState;
     this.onStateChange = onStateChange;
     this.config = config;
+
+    const { onError } = callbacks ?? {};
+    this.errorHandler = typeof onError === 'function'
+      ? onError
+      : (error, context) => {
+          console.error('Game loop error:', context, error);
+        };
 
     // Timing
     this.tickInterval = config.tickMs || 100;
@@ -42,12 +49,32 @@ export class GameLoop {
     // Worker for complex planning (future extension)
     this.plannerWorker = null;
 
+    // Sequential update queue to avoid re-entrancy
+    this.updateQueue = [];
+    this.processingQueue = false;
+
     // Bind methods
     this.tick = this.tick.bind(this);
     this.render = this.render.bind(this);
 
     // Initialize without triggering state change
     this.initialized = false;
+  }
+
+  /**
+   * Report an error using the configured error handler.
+   * @param {*} error - Error instance or value
+   * @param {Object} [context={}] - Additional context information
+   */
+  reportError(error, context = {}) {
+    try {
+      this.errorHandler(error, context);
+    } catch (handlerError) {
+      console.error('Game loop error handler failed:', handlerError, {
+        originalError: error,
+        context,
+      });
+    }
   }
 
   /**
@@ -95,6 +122,9 @@ export class GameLoop {
       this.rafId = null;
     }
 
+    this.updateQueue.length = 0;
+    this.processingQueue = false;
+
     if (this.plannerWorker) {
       this.plannerWorker.terminate();
       this.plannerWorker = null;
@@ -105,17 +135,22 @@ export class GameLoop {
    * Execute a single step
    */
   step() {
+    if (this.processingQueue) {
+      console.warn('Ignoring manual step while update is in progress.');
+      return {
+        state: this.state,
+        result: { valid: false, reason: 'Update in progress' },
+      };
+    }
+
     if (this.state.status === GAME_STATUS.GAME_OVER || this.state.status === GAME_STATUS.COMPLETE) {
       return;
     }
+    let result;
 
-    const result = gameTick(this.state);
-    if (result.result.valid) {
-      this.state = result.state;
-      if (this.onStateChange) {
-        this.onStateChange(this.state);
-      }
-    }
+    this.enqueueUpdate(() => {
+      result = this.executeStep();
+    });
 
     return result;
   }
@@ -138,55 +173,13 @@ export class GameLoop {
    * Main game tick (called by render loop)
    */
   tick(currentTime) {
-    if (!this.running) return;
-
-    const deltaTime = currentTime - this.lastTick;
-    this.lastTick = currentTime;
-    this.accumulator += deltaTime;
-
-    let stateChanged = false;
-    let tickCount = 0;
-    const maxTicksPerFrame = 5; // Prevent too many ticks in one frame
-
-    // Fixed timestep with accumulator
-    while (this.accumulator >= this.tickInterval && tickCount < maxTicksPerFrame) {
-      if (this.state.status !== GAME_STATUS.PLAYING) {
-        break;
-      }
-
-      const result = gameTick(this.state);
-      
-      if (!result.result.valid) {
-        console.warn('Invalid game tick result:', result.result.reason);
-        this.running = false;
-        break;
-      }
-
-      this.state = result.state;
-      stateChanged = true;
-      tickCount++;
-
-      // Stop if game ended
-      if (
-        this.state.status === GAME_STATUS.GAME_OVER ||
-        this.state.status === GAME_STATUS.COMPLETE
-      ) {
-        this.running = false;
-        break;
-      }
-
-      this.accumulator -= this.tickInterval;
+    if (!this.running) {
+      return;
     }
 
-    // Clear remaining accumulator if we hit the tick limit
-    if (tickCount >= maxTicksPerFrame) {
-      this.accumulator = 0;
-    }
-
-    // Only notify state change if state actually changed
-    if (stateChanged && this.onStateChange) {
-      this.onStateChange(this.state);
-    }
+    this.enqueueUpdate(() => {
+      this.executeTick(currentTime);
+    });
   }
 
   /**
@@ -217,6 +210,8 @@ export class GameLoop {
     this.running = false;
     this.accumulator = 0;
     this.lastTick = getNow();
+    this.updateQueue.length = 0;
+    this.processingQueue = false;
 
     // Stop any running animation frame
     if (this.rafId) {
@@ -226,6 +221,146 @@ export class GameLoop {
     
     if (this.onStateChange) {
       this.onStateChange(this.state);
+    }
+  }
+
+  enqueueUpdate(task) {
+    this.updateQueue.push(task);
+    if (!this.processingQueue) {
+      this.processQueue();
+    }
+  }
+
+  processQueue() {
+    if (this.processingQueue) {
+      return;
+    }
+
+    this.processingQueue = true;
+    try {
+      while (this.updateQueue.length > 0) {
+        const task = this.updateQueue.shift();
+        try {
+          task();
+        } catch (error) {
+          this.reportError(error, { phase: 'processQueue' });
+        }
+      }
+    } finally {
+      this.processingQueue = false;
+    }
+  }
+
+  executeStep() {
+    try {
+      const result = gameTick(this.state);
+
+      if (result?.result?.valid) {
+        this.state = result.state;
+        if (this.onStateChange) {
+          this.onStateChange(this.state);
+        }
+      } else if (result?.result?.reason !== 'Game not running') {
+        this.reportError(new Error(`Manual step failed: ${result?.result?.reason ?? 'Unknown reason'}`), {
+          phase: 'executeStep',
+          result,
+        });
+      }
+
+      return result;
+    } catch (error) {
+      this.reportError(error, { phase: 'executeStep' });
+      this.running = false;
+      return {
+        state: this.state,
+        result: { valid: false, reason: 'Manual step failed with exception' },
+      };
+    }
+  }
+
+  executeTick(currentTime) {
+    const safeCurrentTime = Number.isFinite(currentTime) ? currentTime : getNow();
+    const deltaTimeRaw = safeCurrentTime - this.lastTick;
+    const deltaTime = Number.isFinite(deltaTimeRaw) && deltaTimeRaw > 0 ? deltaTimeRaw : 0;
+    this.lastTick = safeCurrentTime;
+    this.accumulator += deltaTime;
+
+    const tickInterval = Number.isFinite(this.tickInterval) && this.tickInterval > 0
+      ? this.tickInterval
+      : 16;
+
+    if (tickInterval !== this.tickInterval) {
+      this.reportError(new Error('Invalid tick interval detected; falling back to 16ms'), {
+        previousInterval: this.tickInterval,
+      });
+      this.tickInterval = tickInterval;
+    }
+
+    const maxTicksPerFrame = 5;
+    const updates = [];
+    let tickCount = 0;
+    let workingState = this.state;
+
+    while (this.accumulator >= tickInterval && tickCount < maxTicksPerFrame) {
+      if (!workingState || workingState.status !== GAME_STATUS.PLAYING) {
+        break;
+      }
+
+      let tickResult;
+      try {
+        tickResult = gameTick(workingState);
+      } catch (error) {
+        this.reportError(error, { phase: 'executeTick', tickCount });
+        this.running = false;
+        break;
+      }
+
+      if (!tickResult || typeof tickResult !== 'object') {
+        this.reportError(new Error('Game tick returned invalid result object'), {
+          phase: 'executeTick',
+          tickCount,
+          result: tickResult,
+        });
+        this.running = false;
+        break;
+      }
+
+      if (!tickResult.result?.valid) {
+        if (tickResult.result?.reason !== 'Game not running') {
+          this.reportError(new Error(`Game tick invalid: ${tickResult.result?.reason ?? 'Unknown reason'}`), {
+            phase: 'executeTick',
+            tickCount,
+            result: tickResult.result,
+          });
+        }
+        this.running = false;
+        break;
+      }
+
+      workingState = tickResult.state;
+      updates.push(workingState);
+      tickCount += 1;
+      this.accumulator -= tickInterval;
+
+      if (
+        !workingState ||
+        workingState.status === GAME_STATUS.GAME_OVER ||
+        workingState.status === GAME_STATUS.COMPLETE
+      ) {
+        this.running = false;
+        break;
+      }
+    }
+
+    if (tickCount >= maxTicksPerFrame) {
+      this.accumulator = 0;
+    }
+
+    if (updates.length > 0) {
+      this.state = updates[updates.length - 1];
+      if (this.onStateChange) {
+        this.onStateChange(this.state);
+      }
     }
   }
 }

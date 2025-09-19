@@ -16,20 +16,58 @@ export function isValidPosition(row, col, rows, cols) {
 }
 
 /**
+ * Validates game configuration and returns detailed errors when invalid
+ * @param {Object} config - Configuration object
+ * @returns {{ valid: boolean, errors: string[] }} Validation result with errors
+ */
+export function validateGameConfig(config) {
+  const errors = [];
+
+  if (typeof config !== 'object' || config === null) {
+    return { valid: false, errors: ['Configuration must be an object'] };
+  }
+
+  const { rows, cols, seed } = config;
+
+  if (!Number.isInteger(rows) || !Number.isInteger(cols)) {
+    errors.push('Rows and columns must be integers');
+  }
+
+  if (Number.isInteger(rows) && rows <= 0) {
+    errors.push('Rows must be greater than zero');
+  }
+
+  if (Number.isInteger(cols) && cols <= 0) {
+    errors.push('Columns must be greater than zero');
+  }
+
+  if (Number.isInteger(rows) && Number.isInteger(cols)) {
+    if (rows * cols < 4) {
+      errors.push('Grid must contain at least four cells');
+    }
+
+    if (rows % 2 !== 0 && cols % 2 !== 0) {
+      errors.push('At least one dimension must be even to generate a Hamiltonian cycle');
+    }
+  }
+
+  if (seed !== undefined && !Number.isSafeInteger(Math.trunc(seed))) {
+    errors.push('Seed must be a safe integer');
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
  * Validates game configuration
  * @param {Object} config - Configuration object
  * @returns {boolean} Whether configuration is valid
  */
 export function isValidGameConfig(config) {
-  return (
-    typeof config === 'object' &&
-    config !== null &&
-    typeof config.rows === 'number' &&
-    typeof config.cols === 'number' &&
-    config.rows > 0 &&
-    config.cols > 0 &&
-    config.rows * config.cols >= 4 // Minimum playable size
-  );
+  return validateGameConfig(config).valid;
 }
 
 /**

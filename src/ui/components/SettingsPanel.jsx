@@ -7,6 +7,14 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { Download, Upload, RotateCcw } from 'lucide-react';
 
+const notifyUser = message => {
+  if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+    window.alert(message);
+  } else {
+    console.warn(message);
+  }
+};
+
 const SettingsPanel = ({
   settings,
   onUpdateSettings,
@@ -23,13 +31,43 @@ const SettingsPanel = ({
   ];
 
   const handleGridSizeChange = e => {
-    const [rows, cols] = e.target.value.split('x').map(x => parseInt(x));
+    const [rowsValue, colsValue] = e.target.value.split('x');
+    const rows = Number.parseInt(rowsValue, 10);
+    const cols = Number.parseInt(colsValue, 10);
+
+    if (!Number.isInteger(rows) || !Number.isInteger(cols)) {
+      notifyUser('Invalid grid size selected. Please choose a supported option.');
+      return;
+    }
+
+    if (rows <= 0 || cols <= 0) {
+      notifyUser('Grid dimensions must be positive integers.');
+      return;
+    }
+
+    if (rows % 2 !== 0 && cols % 2 !== 0) {
+      notifyUser('At least one grid dimension must be even to generate a Hamiltonian cycle.');
+      return;
+    }
+
     onUpdateSettings({ ...settings, rows, cols });
   };
 
   const handleSeedChange = e => {
-    const seed = parseInt(e.target.value) || Date.now();
-    onUpdateSettings({ ...settings, seed });
+    const rawValue = e.target.value.trim();
+
+    if (rawValue === '') {
+      return;
+    }
+
+    const parsedSeed = Number.parseInt(rawValue, 10);
+
+    if (!Number.isSafeInteger(parsedSeed)) {
+      notifyUser('Seed must be a safe integer value.');
+      return;
+    }
+
+    onUpdateSettings({ ...settings, seed: parsedSeed });
   };
 
   const handleRandomSeed = () => {
@@ -45,12 +83,12 @@ const SettingsPanel = ({
       try {
         const importedSettings = onImportSettings(event.target.result);
         if (importedSettings) {
-          alert('Settings imported successfully!');
+          notifyUser('Settings imported successfully!');
         } else {
-          alert('Invalid settings file format.');
+          notifyUser('Invalid settings file format.');
         }
       } catch (error) {
-        alert('Failed to import settings: ' + error.message);
+        notifyUser('Failed to import settings: ' + error.message);
       }
     };
     reader.readAsText(file);
@@ -197,7 +235,7 @@ SettingsPanel.propTypes = {
   settings: PropTypes.shape({
     cols: PropTypes.number.isRequired,
     rows: PropTypes.number.isRequired,
-    seed: PropTypes.string.isRequired,
+    seed: PropTypes.number.isRequired,
     shortcutsEnabled: PropTypes.bool.isRequired,
     safetyBuffer: PropTypes.number.isRequired,
   }).isRequired,

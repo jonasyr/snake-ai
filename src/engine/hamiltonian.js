@@ -6,6 +6,24 @@
 import { createGrid } from './grid.js';
 import { cyclicDistance, indexToPosition } from '../utils/math.js';
 
+function assertValidGridDimensions(rows, cols) {
+  if (!Number.isInteger(rows) || !Number.isInteger(cols)) {
+    throw new Error('Grid dimensions must be integers.');
+  }
+
+  if (rows <= 0 || cols <= 0) {
+    throw new Error('Grid dimensions must be positive.');
+  }
+
+  if (rows * cols < 4) {
+    throw new Error('Grid must contain at least four cells.');
+  }
+
+  if (rows % 2 !== 0 && cols % 2 !== 0) {
+    throw new Error('Hamiltonian cycle requires at least one even dimension.');
+  }
+}
+
 function buildCycleForEvenRows(rows, cols, grid) {
   const sequence = [];
 
@@ -96,6 +114,7 @@ function createCycle(rows, cols, grid) {
  * returns to the starting point using only orthogonal moves.
  */
 export function generateHamiltonianCycle(rows, cols) {
+  assertValidGridDimensions(rows, cols);
   const grid = createGrid(rows, cols);
   const cycle = createCycle(rows, cols, grid);
 
