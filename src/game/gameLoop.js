@@ -42,8 +42,9 @@ export class GameLoop {
     // Worker for complex planning (future extension)
     this.plannerWorker = null;
 
-    // Re-entrancy guard for tick updates
-    this.updating = false;
+    // Sequential update queue to avoid re-entrancy
+    this.updateQueue = [];
+    this.processingQueue = false;
 
     // Bind methods
     this.tick = this.tick.bind(this);
@@ -93,11 +94,13 @@ export class GameLoop {
    */
   stop() {
     this.running = false;
-    this.updating = false;
     if (this.rafId) {
       cancelFrame(this.rafId);
       this.rafId = null;
     }
+
+    this.updateQueue.length = 0;
+    this.processingQueue = false;
 
     if (this.plannerWorker) {
       this.plannerWorker.terminate();
@@ -109,7 +112,7 @@ export class GameLoop {
    * Execute a single step
    */
   step() {
-    if (this.updating) {
+    if (this.processingQueue) {
       console.warn('Ignoring manual step while update is in progress.');
       return {
         state: this.state,
@@ -120,14 +123,11 @@ export class GameLoop {
     if (this.state.status === GAME_STATUS.GAME_OVER || this.state.status === GAME_STATUS.COMPLETE) {
       return;
     }
+    let result;
 
-    const result = gameTick(this.state);
-    if (result.result.valid) {
-      this.state = result.state;
-      if (this.onStateChange) {
-        this.onStateChange(this.state);
-      }
-    }
+    this.enqueueUpdate(() => {
+      result = this.executeStep();
+    });
 
     return result;
   }
@@ -150,63 +150,13 @@ export class GameLoop {
    * Main game tick (called by render loop)
    */
   tick(currentTime) {
-    if (!this.running || this.updating) {
+    if (!this.running) {
       return;
     }
 
-    this.updating = true;
-
-    try {
-      const deltaTime = currentTime - this.lastTick;
-      this.lastTick = currentTime;
-      this.accumulator += deltaTime;
-
-      let stateChanged = false;
-      let tickCount = 0;
-      const maxTicksPerFrame = 5; // Prevent too many ticks in one frame
-
-      // Fixed timestep with accumulator
-      while (this.accumulator >= this.tickInterval && tickCount < maxTicksPerFrame) {
-        if (this.state.status !== GAME_STATUS.PLAYING) {
-          break;
-        }
-
-        const result = gameTick(this.state);
-
-        if (!result.result.valid) {
-          console.warn('Invalid game tick result:', result.result.reason);
-          this.running = false;
-          break;
-        }
-
-        this.state = result.state;
-        stateChanged = true;
-        tickCount++;
-
-        // Stop if game ended
-        if (
-          this.state.status === GAME_STATUS.GAME_OVER ||
-          this.state.status === GAME_STATUS.COMPLETE
-        ) {
-          this.running = false;
-          break;
-        }
-
-        this.accumulator -= this.tickInterval;
-      }
-
-      // Clear remaining accumulator if we hit the tick limit
-      if (tickCount >= maxTicksPerFrame) {
-        this.accumulator = 0;
-      }
-
-      // Only notify state change if state actually changed
-      if (stateChanged && this.onStateChange) {
-        this.onStateChange(this.state);
-      }
-    } finally {
-      this.updating = false;
-    }
+    this.enqueueUpdate(() => {
+      this.executeTick(currentTime);
+    });
   }
 
   /**
@@ -235,9 +185,10 @@ export class GameLoop {
       this.tickInterval = this.config.tickMs;
     }
     this.running = false;
-    this.updating = false;
     this.accumulator = 0;
     this.lastTick = getNow();
+    this.updateQueue.length = 0;
+    this.processingQueue = false;
 
     // Stop any running animation frame
     if (this.rafId) {
@@ -246,6 +197,91 @@ export class GameLoop {
     }
     
     if (this.onStateChange) {
+      this.onStateChange(this.state);
+    }
+  }
+
+  enqueueUpdate(task) {
+    this.updateQueue.push(task);
+    if (!this.processingQueue) {
+      this.processQueue();
+    }
+  }
+
+  processQueue() {
+    if (this.processingQueue) {
+      return;
+    }
+
+    this.processingQueue = true;
+    try {
+      while (this.updateQueue.length > 0) {
+        const task = this.updateQueue.shift();
+        try {
+          task();
+        } catch (error) {
+          console.error('Game loop update failed:', error);
+        }
+      }
+    } finally {
+      this.processingQueue = false;
+    }
+  }
+
+  executeStep() {
+    const result = gameTick(this.state);
+    if (result?.result?.valid) {
+      this.state = result.state;
+      if (this.onStateChange) {
+        this.onStateChange(this.state);
+      }
+    }
+
+    return result;
+  }
+
+  executeTick(currentTime) {
+    const deltaTime = currentTime - this.lastTick;
+    this.lastTick = currentTime;
+    this.accumulator += deltaTime;
+
+    let stateChanged = false;
+    let tickCount = 0;
+    const maxTicksPerFrame = 5;
+
+    while (this.accumulator >= this.tickInterval && tickCount < maxTicksPerFrame) {
+      if (this.state.status !== GAME_STATUS.PLAYING) {
+        break;
+      }
+
+      const result = gameTick(this.state);
+
+      if (!result.result.valid) {
+        console.warn('Invalid game tick result:', result.result.reason);
+        this.running = false;
+        break;
+      }
+
+      this.state = result.state;
+      stateChanged = true;
+      tickCount++;
+
+      if (
+        this.state.status === GAME_STATUS.GAME_OVER ||
+        this.state.status === GAME_STATUS.COMPLETE
+      ) {
+        this.running = false;
+        break;
+      }
+
+      this.accumulator -= this.tickInterval;
+    }
+
+    if (tickCount >= maxTicksPerFrame) {
+      this.accumulator = 0;
+    }
+
+    if (stateChanged && this.onStateChange) {
       this.onStateChange(this.state);
     }
   }
