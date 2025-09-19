@@ -10,7 +10,7 @@ import { cyclicDistance } from '../../utils/math.js';
 function safeLoadSettings() {
   try {
     return loadSettings();
-  } catch (error) {
+  } catch {
     return { ...DEFAULT_CONFIG };
   }
 }

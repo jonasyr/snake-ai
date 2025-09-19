@@ -30,4 +30,29 @@ npm test
 
 # Build for production
 npm run build
+
+# Run headless simulations
+npm run simulate -- --games 1000 --rows 20 --cols 20 --details
 ```
+
+## 🧪 Headless simulations
+
+Use the built-in simulator to execute thousands of AI-only games without the browser. This is ideal for collecting statistics such as completion rate, average moves, or duration for a given grid size.
+
+```bash
+# Run 1,000 games on a 20x20 board and show summary plus sample runs
+npm run simulate -- --games 1000 --rows 20 --cols 20 --details --sample 5
+
+# Output the raw JSON data for further processing
+npm run simulate -- --games 500 --rows 16 --cols 16 --json
+```
+
+Key flags:
+
+- `--games` – number of games to run (defaults to 1)
+- `--rows` / `--cols` – grid dimensions
+- `--seed` – base seed for deterministic runs
+- `--uniqueSeeds=false` – reuse the same seed for each run
+- `--details` – print a table with per-game results
+- `--json` – emit machine-readable JSON instead of formatted text
+- `--shortcutsEnabled=false` – disable shortcut logic for comparison runs

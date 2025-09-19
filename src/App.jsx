@@ -5,16 +5,19 @@ import { useGameState } from './ui/hooks/useGameState.js';
 import { useCanvas } from './ui/hooks/useCanvas.js';
 
 // UI Components
-const StatCard = ({ label, value, icon: Icon, color = 'blue', subtitle }) => (
-  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4 hover:bg-white/10 transition-all duration-300">
-    <div className="flex items-center justify-between mb-2">
-      <Icon className={`w-5 h-5 text-${color}-400`} />
-      <span className={`text-2xl font-bold text-${color}-400`}>{value}</span>
+const StatCard = ({ label, value, icon, color = 'blue', subtitle }) => {
+  const IconComponent = icon;
+  return (
+    <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4 hover:bg-white/10 transition-all duration-300">
+      <div className="flex items-center justify-between mb-2">
+        <IconComponent className={`w-5 h-5 text-${color}-400`} />
+        <span className={`text-2xl font-bold text-${color}-400`}>{value}</span>
+      </div>
+      <p className="text-sm text-gray-300 font-medium">{label}</p>
+      {subtitle && <p className="text-xs text-gray-400 mt-1">{subtitle}</p>}
     </div>
-    <p className="text-sm text-gray-300 font-medium">{label}</p>
-    {subtitle && <p className="text-xs text-gray-400 mt-1">{subtitle}</p>}
-  </div>
-);
+  );
+};
 
 StatCard.propTypes = {
   label: PropTypes.string.isRequired,

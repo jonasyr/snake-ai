@@ -7,21 +7,24 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { Info, Zap, TrendingUp, Target, Activity } from 'lucide-react';
 
-const StatCard = ({ label, value, icon: Icon, color = 'blue', subtitle, trend }) => (
-  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4 hover:bg-white/10 transition-all duration-300">
-    <div className="flex items-center justify-between mb-2">
-      <Icon className={`w-5 h-5 text-${color}-400`} />
-      <div className="flex items-center gap-2">
-        <span className={`text-2xl font-bold text-${color}-400`}>{value}</span>
-        {trend && (
-          <TrendingUp className={`w-4 h-4 ${trend > 0 ? 'text-green-400' : 'text-red-400'}`} />
-        )}
+const StatCard = ({ label, value, icon, color = 'blue', subtitle, trend }) => {
+  const IconComponent = icon;
+  return (
+    <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4 hover:bg-white/10 transition-all duration-300">
+      <div className="flex items-center justify-between mb-2">
+        <IconComponent className={`w-5 h-5 text-${color}-400`} />
+        <div className="flex items-center gap-2">
+          <span className={`text-2xl font-bold text-${color}-400`}>{value}</span>
+          {trend && (
+            <TrendingUp className={`w-4 h-4 ${trend > 0 ? 'text-green-400' : 'text-red-400'}`} />
+          )}
+        </div>
       </div>
+      <p className="text-sm text-gray-300 font-medium">{label}</p>
+      {subtitle && <p className="text-xs text-gray-400 mt-1">{subtitle}</p>}
     </div>
-    <p className="text-sm text-gray-300 font-medium">{label}</p>
-    {subtitle && <p className="text-xs text-gray-400 mt-1">{subtitle}</p>}
-  </div>
-);
+  );
+};
 
 const getStatusColor = status => {
   switch (status) {
