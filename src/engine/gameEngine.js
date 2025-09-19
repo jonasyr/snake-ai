@@ -3,14 +3,121 @@
  * Main game engine with pure state transitions - FIXED VERSION
  */
 
-import { createSnake, moveSnake, getHead, getTail } from './snake.js';
+import { createSnake, moveSnake, getHead, getTail, getLength, normalizeSnake } from './snake.js';
 import { spawnFruit, isFruitAt } from './fruit.js';
 import { generateHamiltonianCycle } from './hamiltonian.js';
 import { checkCollision } from './collision.js';
 import { planPath } from './shortcuts.js';
 import { GAME_STATUS, MOVE_RESULT } from './types.js';
 import { DEFAULT_CONFIG } from '../utils/constants.js';
+import { createObjectPool } from '../utils/collections.js';
 import { isValidCellIndex, validateGameConfig } from '../utils/guards.js';
+
+const plannerDataPool = createObjectPool(
+  () => ({
+    plannedPath: [],
+    shortcutEdge: null,
+    edgeCache: [0, 0],
+  }),
+  (planner) => {
+    planner.plannedPath.length = 0;
+    planner.shortcutEdge = null;
+  },
+  256
+);
+
+const gameStatePool = createObjectPool(
+  () => ({
+    config: null,
+    snake: null,
+    fruit: -1,
+    cycle: null,
+    cycleIndex: null,
+    moves: 0,
+    score: 0,
+    status: GAME_STATUS.PAUSED,
+    lastMoveWasShortcut: false,
+    plannerData: null,
+  }),
+  (state) => {
+    state.config = null;
+    state.snake = null;
+    state.fruit = -1;
+    state.cycle = null;
+    state.cycleIndex = null;
+    state.moves = 0;
+    state.score = 0;
+    state.status = GAME_STATUS.PAUSED;
+    state.lastMoveWasShortcut = false;
+    state.plannerData = null;
+  },
+  256
+);
+
+function acquirePlannerData() {
+  const planner = plannerDataPool.get();
+  planner.plannedPath.length = 0;
+  planner.shortcutEdge = null;
+  return planner;
+}
+
+function clonePlannerData(source) {
+  if (!source) {
+    return null;
+  }
+
+  const clone = acquirePlannerData();
+  if (source.plannedPath?.length) {
+    for (let i = 0; i < source.plannedPath.length; i += 1) {
+      clone.plannedPath.push(source.plannedPath[i]);
+    }
+  }
+
+  if (Array.isArray(source.shortcutEdge)) {
+    const edge = clone.edgeCache;
+    edge[0] = source.shortcutEdge[0];
+    edge[1] = source.shortcutEdge[1];
+    clone.shortcutEdge = edge;
+  }
+
+  return clone;
+}
+
+function acquireGameState() {
+  return gameStatePool.get();
+}
+
+function copyCoreState(target, source) {
+  target.config = source.config;
+  target.snake = source.snake;
+  target.fruit = source.fruit;
+  target.cycle = source.cycle;
+  target.cycleIndex = source.cycleIndex;
+  target.moves = source.moves;
+  target.score = source.score;
+  target.status = source.status;
+  target.lastMoveWasShortcut = source.lastMoveWasShortcut;
+}
+
+function cloneState(source) {
+  const clone = acquireGameState();
+  copyCoreState(clone, source);
+  clone.plannerData = clonePlannerData(source.plannerData);
+  return clone;
+}
+
+export function releaseGameState(state) {
+  if (!state) {
+    return;
+  }
+
+  if (state.plannerData) {
+    plannerDataPool.release(state.plannerData);
+    state.plannerData = null;
+  }
+
+  gameStatePool.release(state);
+}
 
 /**
  * Initialize a new game state
@@ -38,28 +145,21 @@ export function initializeGame(config = DEFAULT_CONFIG) {
     throw new Error('Failed to generate Hamiltonian cycle');
   }
 
-  // Initialize snake at first position in cycle
   const startCell = hamiltonianData.cycle[0];
-  const snake = createSnake(startCell);
-
-  // Spawn initial fruit
+  const snake = createSnake(startCell, hamiltonianData.cycle.length);
   const fruit = spawnFruit(snake.occupied, hamiltonianData.cycle.length);
 
-  const initialState = {
-    config: { rows, cols, seed, ...otherConfig },
-    snake,
-    fruit,
-    cycle: hamiltonianData.cycle,
-    cycleIndex: hamiltonianData.cycleIndex,
-    moves: 0,
-    score: 0,
-    status: GAME_STATUS.PAUSED,
-    lastMoveWasShortcut: false,
-    plannerData: {
-      plannedPath: [],
-      shortcutEdge: null,
-    },
-  };
+  const initialState = acquireGameState();
+  initialState.config = { rows, cols, seed, ...otherConfig };
+  initialState.snake = snake;
+  initialState.fruit = fruit;
+  initialState.cycle = hamiltonianData.cycle;
+  initialState.cycleIndex = hamiltonianData.cycleIndex;
+  initialState.moves = 0;
+  initialState.score = 0;
+  initialState.status = GAME_STATUS.PAUSED;
+  initialState.lastMoveWasShortcut = false;
+  initialState.plannerData = acquirePlannerData();
 
   return initialState;
 }
@@ -77,24 +177,11 @@ export function gameTick(gameState) {
     };
   }
 
-  // Check if game is complete (no free cells)
-  if (gameState.snake.body.length === gameState.cycle.length) {
-    return {
-      state: { ...gameState, status: GAME_STATUS.COMPLETE },
-      result: { valid: true, reason: MOVE_RESULT.GAME_COMPLETE },
-    };
-  }
-
-  // Plan next move
-  const pathPlan = planPath(gameState, gameState.config);
-  const nextCell = pathPlan.nextMove;
-
-  let totalCells = 0;
-  if (Number.isInteger(gameState.cycle?.length)) {
-    totalCells = gameState.cycle.length;
-  } else if (Number.isInteger(gameState.config?.rows) && Number.isInteger(gameState.config?.cols)) {
-    totalCells = gameState.config.rows * gameState.config.cols;
-  }
+  const totalCells = Number.isInteger(gameState.cycle?.length)
+    ? gameState.cycle.length
+    : (Number.isInteger(gameState.config?.rows) && Number.isInteger(gameState.config?.cols)
+        ? gameState.config.rows * gameState.config.cols
+        : 0);
 
   if (!Number.isInteger(totalCells) || totalCells <= 0) {
     console.error('Invalid grid configuration detected during game tick.', {
@@ -107,6 +194,25 @@ export function gameTick(gameState) {
     };
   }
 
+  const normalizedSnake = normalizeSnake(gameState.snake, totalCells);
+  const workingState = normalizedSnake === gameState.snake
+    ? gameState
+    : { ...gameState, snake: normalizedSnake };
+
+  // Check if game is complete (no free cells)
+  if (getLength(workingState.snake) === workingState.cycle.length) {
+    const terminalState = cloneState(workingState);
+    terminalState.status = GAME_STATUS.COMPLETE;
+    return {
+      state: terminalState,
+      result: { valid: true, reason: MOVE_RESULT.GAME_COMPLETE },
+    };
+  }
+
+  // Plan next move
+  const pathPlan = planPath(workingState, workingState.config);
+  const nextCell = pathPlan.nextMove;
+
   if (!isValidCellIndex(nextCell, totalCells)) {
     console.error('Planner generated invalid target cell.', {
       nextCell,
@@ -114,60 +220,69 @@ export function gameTick(gameState) {
       pathPlan,
     });
     return {
-      state: gameState,
+      state: workingState,
       result: { valid: false, reason: 'Planner generated invalid target cell' },
     };
   }
 
   // Check collision
-  const collision = checkCollision(nextCell, gameState);
+  const collision = checkCollision(nextCell, workingState);
   if (collision.collision) {
+    const failedState = cloneState(workingState);
+    failedState.status = GAME_STATUS.GAME_OVER;
     return {
-      state: { ...gameState, status: GAME_STATUS.GAME_OVER },
+      state: failedState,
       result: { valid: false, reason: collision.reason, collision: collision.type },
     };
   }
 
   // Determine if eating fruit
-  const willEat = isFruitAt(gameState.fruit, nextCell);
+  const willEat = isFruitAt(workingState.fruit, nextCell);
 
   // Move snake
-  const newSnake = moveSnake(gameState.snake, nextCell, willEat);
+  const newSnake = moveSnake(workingState.snake, nextCell, willEat);
+
+  const nextFruit = willEat
+    ? spawnFruit(newSnake.occupied, workingState.cycle.length)
+    : workingState.fruit;
+
+  const plannerData = acquirePlannerData();
+  calculatePlannedPath(
+    newSnake,
+    nextFruit,
+    workingState.cycle,
+    workingState.cycleIndex,
+    plannerData.plannedPath
+  );
+
+  if (pathPlan.isShortcut) {
+    const edge = plannerData.edgeCache;
+    edge[0] = getHead(workingState.snake);
+    edge[1] = nextCell;
+    plannerData.shortcutEdge = edge;
+  }
 
   // Update game state
-  let newState = {
-    ...gameState,
-    snake: newSnake,
-    moves: gameState.moves + 1,
-    lastMoveWasShortcut: pathPlan.isShortcut,
-    plannerData: {
-      plannedPath: calculatePlannedPath(
-        newSnake,
-        gameState.fruit,
-        gameState.cycle,
-        gameState.cycleIndex
-      ),
-      shortcutEdge: pathPlan.isShortcut ? [getHead(gameState.snake), nextCell] : null,
-    },
-  };
+  const newState = acquireGameState();
+  copyCoreState(newState, workingState);
+  newState.snake = newSnake;
+  newState.fruit = nextFruit;
+  newState.moves = workingState.moves + 1;
+  newState.lastMoveWasShortcut = pathPlan.isShortcut;
+  newState.plannerData = plannerData;
 
-  // Handle fruit consumption
+  const config = workingState.config || DEFAULT_CONFIG;
+  const fruitValue = config.scorePerFruit ?? DEFAULT_CONFIG.scorePerFruit;
+  const shortcutBonus = config.shortcutBonus ?? DEFAULT_CONFIG.shortcutBonus;
+
+  let nextScore = workingState.score;
   if (willEat) {
-    const newFruit = spawnFruit(newSnake.occupied, gameState.cycle.length);
-    const config = gameState.config || DEFAULT_CONFIG;
-    newState = {
-      ...newState,
-      fruit: newFruit,
-      score:
-        gameState.score +
-        (config.scorePerFruit ?? DEFAULT_CONFIG.scorePerFruit) +
-        (pathPlan.isShortcut ? (config.shortcutBonus ?? DEFAULT_CONFIG.shortcutBonus) : 0),
-    };
+    nextScore += fruitValue + (pathPlan.isShortcut ? shortcutBonus : 0);
+  }
+  newState.score = nextScore;
 
-    // Check if game complete after eating
-    if (newFruit === -1) {
-      newState.status = GAME_STATUS.COMPLETE;
-    }
+  if (willEat && nextFruit === -1) {
+    newState.status = GAME_STATUS.COMPLETE;
   }
 
   const resultReason = willEat ? MOVE_RESULT.ATE_FRUIT : MOVE_RESULT.VALID;
@@ -189,11 +304,18 @@ export function gameTick(gameState) {
  * @param {number} fruit - Fruit position
  * @param {number[]} cycle - Hamiltonian cycle
  * @param {Map} cycleIndex - Cycle position lookup
+ * @param {number[]} target - Target array to populate with planned path
  * @returns {number[]} Planned path array
  */
-function calculatePlannedPath(snake, fruit, cycle, cycleIndex) {
-  if (!snake.body || snake.body.length === 0 || fruit < 0 || !cycle || !cycleIndex) {
+function calculatePlannedPath(snake, fruit, cycle, cycleIndex, target) {
+  if (!Array.isArray(target)) {
     return [];
+  }
+
+  target.length = 0;
+
+  if (!snake || getLength(snake) === 0 || fruit < 0 || !cycle || !cycleIndex) {
+    return target;
   }
 
   const headCell = getHead(snake);
@@ -201,19 +323,18 @@ function calculatePlannedPath(snake, fruit, cycle, cycleIndex) {
   const fruitPos = cycleIndex.get(fruit);
 
   if (headPos === undefined || fruitPos === undefined) {
-    return [];
+    return target;
   }
 
-  const path = [];
   let currentPos = headPos;
   const maxSteps = Math.min(cycle.length, 20); // Limit path length for performance
 
-  while (currentPos !== fruitPos && path.length < maxSteps) {
+  while (currentPos !== fruitPos && target.length < maxSteps) {
     currentPos = (currentPos + 1) % cycle.length;
-    path.push(cycle[currentPos]);
+    target.push(cycle[currentPos]);
   }
 
-  return path;
+  return target;
 }
 
 /**
@@ -223,10 +344,9 @@ function calculatePlannedPath(snake, fruit, cycle, cycleIndex) {
  * @returns {Object} Updated game state
  */
 export function setGameStatus(gameState, status) {
-  return {
-    ...gameState,
-    status,
-  };
+  const updated = cloneState(gameState);
+  updated.status = status;
+  return updated;
 }
 
 /**
@@ -245,8 +365,8 @@ export function resetGame(config) {
  */
 export function getGameStats(gameState) {
   const { snake, moves, score, cycle, fruit } = gameState;
-  
-  if (!snake?.body || !cycle || !gameState.cycleIndex) {
+
+  if (!snake || !cycle || !gameState.cycleIndex) {
     return {
       moves: 0,
       length: 0,
@@ -265,17 +385,18 @@ export function getGameStats(gameState) {
   const headPos = gameState.cycleIndex.get(head);
   const tailPos = gameState.cycleIndex.get(tail);
   const fruitPos = gameState.cycleIndex.get(fruit);
+  const snakeLength = getLength(snake);
 
   return {
     moves: moves || 0,
-    length: snake.body.length,
+    length: snakeLength,
     score: score || 0,
-    free: cycle.length - snake.body.length,
-    distHeadApple: (headPos !== undefined && fruitPos !== undefined) 
-      ? (fruitPos - headPos + cycle.length) % cycle.length 
+    free: cycle.length - snakeLength,
+    distHeadApple: (headPos !== undefined && fruitPos !== undefined)
+      ? (fruitPos - headPos + cycle.length) % cycle.length
       : 0,
-    distHeadTail: (headPos !== undefined && tailPos !== undefined) 
-      ? (tailPos - headPos + cycle.length) % cycle.length 
+    distHeadTail: (headPos !== undefined && tailPos !== undefined)
+      ? (tailPos - headPos + cycle.length) % cycle.length
       : 0,
     shortcut: gameState.lastMoveWasShortcut || false,
     efficiency: moves > 0 ? Math.round((score / moves) * 100) : 0,

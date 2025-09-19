@@ -3,7 +3,7 @@
  * Frame-locked game loop with worker integration - FIXED VERSION
  */
 
-import { gameTick, setGameStatus, getGameStats } from '../engine/gameEngine.js';
+import { gameTick, setGameStatus, getGameStats, releaseGameState } from '../engine/gameEngine.js';
 import { GAME_STATUS } from '../engine/types.js';
 
 const getNow = () => (
@@ -85,6 +85,7 @@ export class GameLoop {
       return; // Cannot start from terminal states
     }
 
+    const previousState = this.state;
     this.state = setGameStatus(this.state, GAME_STATUS.PLAYING);
     this.running = true;
     this.lastTick = getNow();
@@ -93,6 +94,10 @@ export class GameLoop {
     // Notify state change
     if (this.onStateChange) {
       this.onStateChange(this.state);
+    }
+
+    if (previousState && previousState !== this.state) {
+      releaseGameState(previousState);
     }
 
     if (!this.rafId) {
@@ -104,11 +109,16 @@ export class GameLoop {
    * Pause the game loop
    */
   pause() {
+    const previousState = this.state;
     this.state = setGameStatus(this.state, GAME_STATUS.PAUSED);
     this.running = false;
-    
+
     if (this.onStateChange) {
       this.onStateChange(this.state);
+    }
+
+    if (previousState && previousState !== this.state) {
+      releaseGameState(previousState);
     }
   }
 
@@ -202,6 +212,7 @@ export class GameLoop {
    */
   reset(newState) {
     // ✅ Don't deep copy - just reference the new state
+    const previousState = this.state;
     this.state = newState;
     this.config = newState?.config ?? this.config;
     if (this.config && typeof this.config.tickMs === 'number') {
@@ -218,9 +229,13 @@ export class GameLoop {
       cancelFrame(this.rafId);
       this.rafId = null;
     }
-    
+
     if (this.onStateChange) {
       this.onStateChange(this.state);
+    }
+
+    if (previousState && previousState !== this.state) {
+      releaseGameState(previousState);
     }
   }
 
@@ -253,18 +268,28 @@ export class GameLoop {
 
   executeStep() {
     try {
-      const result = gameTick(this.state);
+      const currentState = this.state;
+      const result = gameTick(currentState);
 
       if (result?.result?.valid) {
-        this.state = result.state;
+        const nextState = result.state;
+        this.state = nextState;
         if (this.onStateChange) {
           this.onStateChange(this.state);
+        }
+        if (currentState && currentState !== nextState) {
+          releaseGameState(currentState);
         }
       } else if (result?.result?.reason !== 'Game not running') {
         this.reportError(new Error(`Manual step failed: ${result?.result?.reason ?? 'Unknown reason'}`), {
           phase: 'executeStep',
           result,
         });
+        if (result?.state && result.state !== currentState && result.state !== this.state) {
+          releaseGameState(result.state);
+        }
+      } else if (result?.state && result.state !== currentState && result.state !== this.state) {
+        releaseGameState(result.state);
       }
 
       return result;
@@ -333,6 +358,9 @@ export class GameLoop {
             result: tickResult.result,
           });
         }
+        if (tickResult.state && tickResult.state !== workingState && tickResult.state !== this.state) {
+          releaseGameState(tickResult.state);
+        }
         this.running = false;
         break;
       }
@@ -357,9 +385,26 @@ export class GameLoop {
     }
 
     if (updates.length > 0) {
-      this.state = updates[updates.length - 1];
+      const previousState = this.state;
+      const finalState = updates[updates.length - 1];
+      this.state = finalState;
       if (this.onStateChange) {
         this.onStateChange(this.state);
+      }
+
+      if (previousState && previousState !== finalState) {
+        releaseGameState(previousState);
+      }
+
+      for (let i = 0; i < updates.length - 1; i += 1) {
+        const interimState = updates[i];
+        if (
+          interimState &&
+          interimState !== previousState &&
+          interimState !== finalState
+        ) {
+          releaseGameState(interimState);
+        }
       }
     }
   }
