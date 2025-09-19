@@ -17,6 +17,7 @@
     "format:check": "prettier --check .",
     "type-check": "jsdoc -t templates/haruki -d docs src/**/*.js",
     "simulate": "node scripts/simulate.js",
+    "simulate:sweep": "node scripts/shortcut-sweep.js",
     "prepare": "husky install"
   },
   "dependencies": {

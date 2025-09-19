@@ -99,6 +99,31 @@ Common flags:
 | `--details` | Include a console table of per-game results. |
 | `--json` | Emit machine-readable JSON including per-run data. |
 
+### Shortcut parameter sweep
+
+The sweep CLI automates exploration of shortcut tuning parameters. It runs
+large batches for every combination of the supplied ranges, tracks progress, and
+persists aggregated metrics to JSON and/or CSV for offline analysis.
+
+```bash
+# Explore safety buffer values 1–4 and late-game locks 0, 2, 4 with 2,000 games
+# per configuration. Results are written to both JSON and CSV files.
+npm run simulate:sweep -- \
+  --games 2000 \
+  --safetyBuffer 1:4:1 \
+  --lateGameLock 0,2,4 \
+  --output results/shortcut-sweep.json \
+  --format both
+
+# Compare shortcut-enabled vs. disabled behavior on a 16x16 grid.
+npm run simulate:sweep -- --shortcutsEnabled true,false --rows 16 --cols 16
+```
+
+Supported options include ranges (e.g. `0:6:1`) or comma-separated value lists.
+By default each configuration runs 1,000 games with unique seeds. Progress and
+best-performing configurations are printed to the console while the sweep is in
+progress.
+
 ## Testing & Quality
 
 - **Unit and integration tests** – Located under `src/tests`, covering engine logic, game loop behavior, and simulations.

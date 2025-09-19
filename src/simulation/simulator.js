@@ -132,6 +132,8 @@ export async function simulateGames(params = {}) {
     other: 0,
   };
 
+  let minMoves = Number.POSITIVE_INFINITY;
+  let maxMoves = 0;
   let minDuration = Number.POSITIVE_INFINITY;
   let maxDuration = 0;
   let fastestCompletion = Number.POSITIVE_INFINITY;
@@ -147,6 +149,11 @@ export async function simulateGames(params = {}) {
     totals.efficiency += result.stats.efficiency;
     totals.free += result.stats.free;
     totals.durationMs += result.durationMs;
+
+    if (Number.isFinite(result.stats.moves)) {
+      minMoves = Math.min(minMoves, result.stats.moves);
+      maxMoves = Math.max(maxMoves, result.stats.moves);
+    }
 
     minDuration = Math.min(minDuration, result.durationMs);
     maxDuration = Math.max(maxDuration, result.durationMs);
@@ -189,6 +196,13 @@ export async function simulateGames(params = {}) {
       free: totals.free / divisor,
       efficiency: totals.efficiency / divisor,
       durationMs: totals.durationMs / divisor,
+    },
+    distributions: {
+      moves: {
+        min: Number.isFinite(minMoves) ? minMoves : null,
+        max: totalGames > 0 ? maxMoves : null,
+        mean: totals.moves / divisor,
+      },
     },
     totals: {
       moves: totals.moves,
