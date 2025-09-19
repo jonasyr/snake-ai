@@ -2,7 +2,9 @@
 
 A modern, highly optimized Snake game featuring autonomous AI that uses Hamiltonian cycle pathfinding with intelligent shortcuts. Built with React and a pure functional game engine.
 
-![Snake AI Demo](docs/demo.gif)
+![Snake AI Demo](<img width="1674" height="1237" alt="image" src="https://github.com/user-attachments/assets/c22d1890-11a2-41ff-a0a9-a841c7c16d43" />)
+
+
 
 
 ## ✨ Features
