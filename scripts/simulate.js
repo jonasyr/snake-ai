@@ -5,6 +5,13 @@
 import { simulateGames } from '../src/simulation/simulator.js';
 import { DEFAULT_CONFIG } from '../src/utils/constants.js';
 
+/**
+ * Convert an argv array into a dictionary of CLI flags. Flags may be specified
+ * in `--key value` or `--flag` form.
+ *
+ * @param {string[]} argv - Raw arguments from the command line.
+ * @returns {Record<string, string|boolean>} Parsed flag/value map.
+ */
 function parseArgs(argv) {
   const args = {};
   for (let i = 0; i < argv.length; i += 1) {
@@ -22,16 +29,38 @@ function parseArgs(argv) {
   return args;
 }
 
+/**
+ * Parse a value into an integer, falling back when parsing fails.
+ *
+ * @param {string|number|undefined} value - Input value to parse.
+ * @param {number} fallback - Default value when parsing fails.
+ * @returns {number} Parsed integer or the fallback.
+ */
 function toInteger(value, fallback) {
   const parsed = Number.parseInt(value, 10);
   return Number.isNaN(parsed) ? fallback : parsed;
 }
 
+/**
+ * Parse a value into a number, falling back when parsing fails.
+ *
+ * @param {string|number|undefined} value - Input value to parse.
+ * @param {number} fallback - Default value when parsing fails.
+ * @returns {number} Parsed number or the fallback.
+ */
 function toNumber(value, fallback) {
   const parsed = Number.parseFloat(value);
   return Number.isNaN(parsed) ? fallback : parsed;
 }
 
+/**
+ * Normalize assorted truthy/falsy CLI values ("true", "1", "yes", etc.) into a
+ * boolean.
+ *
+ * @param {string|boolean|undefined} value - Value to normalize.
+ * @param {boolean} fallback - Default boolean when the input cannot be parsed.
+ * @returns {boolean} Normalized boolean.
+ */
 function toBoolean(value, fallback) {
   if (value === undefined) {
     return fallback;
@@ -47,10 +76,20 @@ function toBoolean(value, fallback) {
   return Boolean(value);
 }
 
+/**
+ * Format a duration in milliseconds for friendly console output.
+ *
+ * @param {number} value - Duration in milliseconds.
+ * @returns {string} Formatted string with ms suffix.
+ */
 function formatMs(value) {
   return `${value.toFixed(2)} ms`;
 }
 
+/**
+ * Entry point that parses CLI arguments, runs simulations, and reports results
+ * either as formatted text or JSON.
+ */
 function main() {
   const argv = process.argv.slice(2);
   const args = parseArgs(argv);

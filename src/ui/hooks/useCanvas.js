@@ -2,16 +2,34 @@ import { useCallback, useEffect, useRef } from 'react';
 import { indexToPosition } from '../../utils/math.js';
 import { COLORS, DEFAULT_CONFIG } from '../../utils/constants.js';
 
+/**
+ * Frozen empty array used as a safe default when path planning data is
+ * unavailable. Prevents accidental mutation across renders.
+ */
 const EMPTY_ARRAY = Object.freeze([]);
 
+/** No-operation placeholder for optional callbacks. */
 const noop = () => {};
+
+/** requestAnimationFrame polyfill for non-browser environments (e.g. tests). */
 const RAF_FALLBACK = typeof window !== 'undefined' && window.requestAnimationFrame
   ? window.requestAnimationFrame.bind(window)
   : (cb) => setTimeout(cb, 16);
+
+/** cancelAnimationFrame counterpart for {@link RAF_FALLBACK}. */
 const CANCEL_RAF_FALLBACK = typeof window !== 'undefined' && window.cancelAnimationFrame
   ? window.cancelAnimationFrame.bind(window)
   : clearTimeout;
 
+/**
+ * Render the static grid lines used as a backdrop behind the snake, fruit, and
+ * path overlays.
+ *
+ * @param {CanvasRenderingContext2D} ctx - Drawing context.
+ * @param {number} rows - Grid row count.
+ * @param {number} cols - Grid column count.
+ * @param {number} cellSize - Pixel size of each cell.
+ */
 function drawGrid(ctx, rows, cols, cellSize) {
   ctx.strokeStyle = '#1f2933';
   ctx.lineWidth = 1;
@@ -32,19 +50,15 @@ function drawGrid(ctx, rows, cols, cellSize) {
   ctx.stroke();
 }
 
-function drawCells(ctx, cells, cols, cellSize, color, shrink = 0) {
-  if (!Array.isArray(cells)) return;
-  ctx.fillStyle = color;
-  const size = cellSize - shrink;
-  const offset = shrink / 2;
-
-  for (const cell of cells) {
-    if (cell < 0) continue;
-    const [row, col] = indexToPosition(cell, cols);
-    ctx.fillRect(col * cellSize + offset, row * cellSize + offset, size, size);
-  }
-}
-
+/**
+ * Render the Hamiltonian cycle overlay so players can visualize the default
+ * traversal order used by the AI.
+ *
+ * @param {CanvasRenderingContext2D} ctx - Drawing context.
+ * @param {number[]} cycle - Ordered list of cell indices.
+ * @param {number} cols - Grid columns.
+ * @param {number} cellSize - Cell dimension in pixels.
+ */
 function drawCycle(ctx, cycle, cols, cellSize) {
   if (!Array.isArray(cycle) || cycle.length === 0) return;
 
@@ -74,6 +88,15 @@ function drawCycle(ctx, cycle, cols, cellSize) {
   ctx.stroke();
 }
 
+/**
+ * Highlight the currently executed shortcut edge as a bold line across the
+ * grid.
+ *
+ * @param {CanvasRenderingContext2D} ctx - Drawing context.
+ * @param {[number, number]} shortcut - Start and end cell indices.
+ * @param {number} cols - Grid columns.
+ * @param {number} cellSize - Cell dimension in pixels.
+ */
 function drawShortcut(ctx, shortcut, cols, cellSize) {
   if (!Array.isArray(shortcut) || shortcut.length < 2) return;
 
@@ -91,6 +114,16 @@ function drawShortcut(ctx, shortcut, cols, cellSize) {
   ctx.stroke();
 }
 
+/**
+ * Render the dotted preview path that the snake intends to follow after the
+ * current move.
+ *
+ * @param {CanvasRenderingContext2D} ctx - Drawing context.
+ * @param {number} snakeHead - Current head cell index.
+ * @param {number[]} path - Planned upcoming cell indices.
+ * @param {number} cols - Grid columns.
+ * @param {number} cellSize - Cell dimension in pixels.
+ */
 function drawPlannedPath(ctx, snakeHead, path, cols, cellSize) {
   if (!Array.isArray(path) || path.length === 0 || snakeHead === undefined) return;
 
@@ -111,6 +144,14 @@ function drawPlannedPath(ctx, snakeHead, path, cols, cellSize) {
   ctx.setLineDash([]);
 }
 
+/**
+ * Draw the fruit as a circular dot centered within its grid cell.
+ *
+ * @param {CanvasRenderingContext2D} ctx - Drawing context.
+ * @param {number} fruit - Fruit cell index.
+ * @param {number} cols - Grid columns.
+ * @param {number} cellSize - Cell dimension in pixels.
+ */
 function drawFruitDot(ctx, fruit, cols, cellSize) {
   if (fruit === undefined || fruit < 0) {
     return;
@@ -129,6 +170,17 @@ function drawFruitDot(ctx, fruit, cols, cellSize) {
   ctx.fill();
 }
 
+/**
+ * Fill a single cell, typically used for the head and tail to give them
+ * distinct styling compared to the rest of the body.
+ *
+ * @param {CanvasRenderingContext2D} ctx - Drawing context.
+ * @param {number} cell - Cell index to fill.
+ * @param {number} cols - Grid columns.
+ * @param {number} cellSize - Cell dimension in pixels.
+ * @param {string} color - Fill color.
+ * @param {number} [shrink=0] - Optional inset for border separation.
+ */
 function fillCell(ctx, cell, cols, cellSize, color, shrink = 0) {
   if (cell === undefined || cell < 0) {
     return;
@@ -142,6 +194,19 @@ function fillCell(ctx, cell, cols, cellSize, color, shrink = 0) {
   ctx.fillRect(col * cellSize + offset, row * cellSize + offset, size, size);
 }
 
+/**
+ * Render a contiguous section of the snake body beginning at the supplied
+ * index. Allows selective drawing of head versus body segments with different
+ * styling.
+ *
+ * @param {CanvasRenderingContext2D} ctx - Drawing context.
+ * @param {number[]} cells - Snake body indices.
+ * @param {number} startIndex - First index to render.
+ * @param {number} cols - Grid columns.
+ * @param {number} cellSize - Cell dimension in pixels.
+ * @param {string} color - Fill color.
+ * @param {number} [shrink=0] - Optional inset.
+ */
 function drawSnakeSection(ctx, cells, startIndex, cols, cellSize, color, shrink = 0) {
   if (!Array.isArray(cells) || cells.length <= startIndex) {
     return;
@@ -159,6 +224,18 @@ function drawSnakeSection(ctx, cells, startIndex, cols, cellSize, color, shrink 
   }
 }
 
+/**
+ * Create an off-screen canvas containing immutable background layers (grid and
+ * optional cycle). This allows the main canvas to quickly restore background
+ * pixels without re-rendering geometry each frame.
+ *
+ * @param {number} rows - Grid rows.
+ * @param {number} cols - Grid columns.
+ * @param {number} cellSize - Cell dimension in pixels.
+ * @param {number[]} cycle - Hamiltonian cycle path.
+ * @param {boolean} showCycle - Whether to include the cycle in the static layer.
+ * @returns {HTMLCanvasElement | null} Off-screen canvas or null when DOM access is unavailable.
+ */
 function createStaticLayer(rows, cols, cellSize, cycle, showCycle) {
   if (typeof document === 'undefined') {
     return null;
@@ -186,6 +263,16 @@ function createStaticLayer(rows, cols, cellSize, cycle, showCycle) {
   return canvas;
 }
 
+/**
+ * Copy the background pixels for a particular cell from the static layer. Used
+ * to erase previous snake positions before drawing their new location.
+ *
+ * @param {CanvasRenderingContext2D} ctx - Drawing context.
+ * @param {HTMLCanvasElement|null} staticCanvas - Pre-rendered background layer.
+ * @param {number} cell - Cell index to restore.
+ * @param {number} cols - Grid columns.
+ * @param {number} cellSize - Cell dimension in pixels.
+ */
 function restoreCellFromStatic(ctx, staticCanvas, cell, cols, cellSize) {
   if (!staticCanvas || cell === undefined || cell < 0) {
     return;
@@ -205,6 +292,15 @@ function restoreCellFromStatic(ctx, staticCanvas, cell, cols, cellSize) {
   );
 }
 
+/**
+ * Produce a deterministic signature for the currently rendered path/shortcut
+ * combination so we can skip expensive redraws when nothing has changed.
+ *
+ * @param {number[]|undefined} pathCells - Planned path cells.
+ * @param {[number, number]|undefined} shortcutEdge - Active shortcut edge.
+ * @param {boolean} showShortcuts - Whether shortcut visuals are enabled.
+ * @returns {string} Signature string capturing the current overlay state.
+ */
 function createPathSignature(pathCells, shortcutEdge, showShortcuts) {
   if (!showShortcuts) {
     return 'off';
@@ -219,6 +315,18 @@ function createPathSignature(pathCells, shortcutEdge, showShortcuts) {
   return `${pathPart}|${shortcutPart}`;
 }
 
+/**
+ * Draw the entire scene from scratch. Used on first render and whenever the
+ * background layer needs to be regenerated.
+ *
+ * @param {CanvasRenderingContext2D} ctx - Drawing context.
+ * @param {HTMLCanvasElement|null} staticCanvas - Optional background canvas.
+ * @param {object} state - Current game state.
+ * @param {number} rows - Grid rows.
+ * @param {number} cols - Grid columns.
+ * @param {number} cellSize - Cell dimension in pixels.
+ * @param {{showCycle:boolean, showShortcuts:boolean}} options - Visualization options.
+ */
 function renderFullScene(ctx, staticCanvas, state, rows, cols, cellSize, options) {
   const width = cols * cellSize;
   const height = rows * cellSize;
@@ -255,6 +363,22 @@ function renderFullScene(ctx, staticCanvas, state, rows, cols, cellSize, options
   }
 }
 
+/**
+ * Perform a minimal redraw by restoring only the cells that changed. This keeps
+ * rendering costs low even when the game runs at high tick rates.
+ *
+ * @param {CanvasRenderingContext2D} ctx - Drawing context.
+ * @param {HTMLCanvasElement|null} staticCanvas - Background layer.
+ * @param {object} state - Current game state.
+ * @param {object|null} prevRender - Cached metadata from the previous render.
+ * @param {number} rows - Grid rows.
+ * @param {number} cols - Grid columns.
+ * @param {number} cellSize - Cell size in pixels.
+ * @param {{showCycle:boolean, showShortcuts:boolean}} options - Visualization options.
+ * @param {number[]} pathCells - Planned path cells for the current frame.
+ * @param {[number, number]|null} shortcutEdge - Shortcut edge for the current frame.
+ * @param {boolean} hasOverlay - Whether overlay layers exist.
+ */
 function renderIncremental(
   ctx,
   staticCanvas,
@@ -344,6 +468,17 @@ function renderIncremental(
   }
 }
 
+/**
+ * React hook that manages the canvas element used to visualize the game. It
+ * memoizes rendering work, creates an off-screen static layer for the grid, and
+ * exposes an imperative `draw` callback that components can use to request
+ * redraws with updated visualization options.
+ *
+ * @param {object} gameState - Current immutable game state from the engine.
+ * @param {object} [settings=DEFAULT_CONFIG] - Configuration controlling grid dimensions and cell size.
+ * @returns {{canvasRef: import('react').RefObject<HTMLCanvasElement>, draw: (options?: object) => void}}
+ * Canvas ref for JSX wiring plus a draw function to control overlays.
+ */
 export function useCanvas(gameState, settings = DEFAULT_CONFIG) {
   const canvasRef = useRef(null);
   const ctxRef = useRef(null);
@@ -432,6 +567,11 @@ export function useCanvas(gameState, settings = DEFAULT_CONFIG) {
     return cleanup;
   }, [rows, cols, cellSize]);
 
+  /**
+   * Central rendering routine reused by the animation loop and manual draw
+   * requests. Handles background caching, overlay diffing, and incremental
+   * updates.
+   */
   const stableRender = useCallback(() => {
     const ctx = ctxRef.current;
     if (!ctx) return;
