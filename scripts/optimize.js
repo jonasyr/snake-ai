@@ -93,13 +93,14 @@ class MemoryMonitor {
 }
 
 /**
- * Default parameter ranges optimized for performance
+ * Default parameter ranges optimized based on previous results
+ * Focused on promising ranges: safetyBuffer 1-3, lateGameLock 0-2, minShortcutWindow 1-6
  */
 const PARAMETER_RANGES = Object.freeze({
   shortcutsEnabled: [true],
-  safetyBuffer: { start: 1, end: 6, step: 1 },
-  lateGameLock: { start: 0, end: 10, step: 2 },
-  minShortcutWindow: { start: 1, end: 6, step: 1 },
+  safetyBuffer: { start: 1, end: 3, step: 1 }, // Optimal range: 1-3
+  lateGameLock: { start: 0, end: 2, step: 1 },  // Optimal range: 0-2  
+  minShortcutWindow: { start: 1, end: 6, step: 1 }, // Full range still useful
   rows: [DEFAULT_CONFIG.rows],
   cols: [DEFAULT_CONFIG.cols],
 });
