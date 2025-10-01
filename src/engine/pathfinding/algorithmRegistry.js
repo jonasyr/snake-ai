@@ -5,6 +5,7 @@
 
 import { PathfindingManager } from './PathfindingManager.js';
 import { HamiltonianStrategy } from './strategies/HamiltonianStrategy.js';
+import { AStarStrategy } from './strategies/AStarStrategy.js';
 
 export const ALGORITHMS = {
   HAMILTONIAN: 'hamiltonian',
@@ -22,5 +23,6 @@ export const ALGORITHMS = {
 export function createAlgorithmManager(options) {
   const manager = new PathfindingManager(options);
   manager.registerStrategy(ALGORITHMS.HAMILTONIAN, HamiltonianStrategy);
+  manager.registerStrategy(ALGORITHMS.ASTAR, AStarStrategy);
   return manager;
 }
