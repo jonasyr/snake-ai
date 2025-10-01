@@ -5,8 +5,18 @@
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Download, Upload, RotateCcw } from 'lucide-react';
+import { Download, Upload, RotateCcw, Info } from 'lucide-react';
+import {
+  ALGORITHMS,
+  ALGORITHM_INFO,
+  getAlgorithmDefaultConfig,
+} from '../../engine/pathfinding/algorithmRegistry.js';
 
+/**
+ * Display a user-facing notification via alert or console fallback.
+ *
+ * @param {string} message - Message to display to the user.
+ */
 const notifyUser = message => {
   if (typeof window !== 'undefined' && typeof window.alert === 'function') {
     window.alert(message);
@@ -15,6 +25,17 @@ const notifyUser = message => {
   }
 };
 
+/**
+ * Settings management panel for configuring game and AI behavior.
+ *
+ * @param {Object} props - Component properties.
+ * @param {Object} props.settings - Current game settings state.
+ * @param {Function} props.onUpdateSettings - Callback to update settings state.
+ * @param {Function} props.onExportSettings - Callback to export settings to a file.
+ * @param {Function} props.onImportSettings - Callback to import settings from a file.
+ * @param {Function} props.onClearData - Callback to clear persisted settings.
+ * @returns {JSX.Element} Rendered settings panel component.
+ */
 const SettingsPanel = ({
   settings,
   onUpdateSettings,
@@ -30,8 +51,32 @@ const SettingsPanel = ({
     { label: '20×30 (Tall)', value: '20x30' },
   ];
 
-  const handleGridSizeChange = e => {
-    const [rowsValue, colsValue] = e.target.value.split('x');
+  const currentAlgorithm =
+    settings.pathfindingAlgorithm || ALGORITHMS.HAMILTONIAN_SHORTCUTS;
+  const algorithmInfo = ALGORITHM_INFO[currentAlgorithm];
+
+  /**
+   * Update algorithm selection, applying default configuration overrides.
+   *
+   * @param {React.ChangeEvent<HTMLSelectElement>} event - Change event.
+   */
+  const handleAlgorithmChange = event => {
+    const algorithm = event.target.value;
+
+    onUpdateSettings({
+      ...settings,
+      pathfindingAlgorithm: algorithm,
+      ...getAlgorithmDefaultConfig(algorithm),
+    });
+  };
+
+  /**
+   * Adjust grid dimensions based on user selection.
+   *
+   * @param {React.ChangeEvent<HTMLSelectElement>} event - Change event.
+   */
+  const handleGridSizeChange = event => {
+    const [rowsValue, colsValue] = event.target.value.split('x');
     const rows = Number.parseInt(rowsValue, 10);
     const cols = Number.parseInt(colsValue, 10);
 
@@ -53,8 +98,13 @@ const SettingsPanel = ({
     onUpdateSettings({ ...settings, rows, cols });
   };
 
-  const handleSeedChange = e => {
-    const rawValue = e.target.value.trim();
+  /**
+   * Update random seed when the user types a value.
+   *
+   * @param {React.ChangeEvent<HTMLInputElement>} event - Change event.
+   */
+  const handleSeedChange = event => {
+    const rawValue = event.target.value.trim();
 
     if (rawValue === '') {
       return;
@@ -70,18 +120,26 @@ const SettingsPanel = ({
     onUpdateSettings({ ...settings, seed: parsedSeed });
   };
 
+  /**
+   * Generate a new random seed using the current timestamp.
+   */
   const handleRandomSeed = () => {
     onUpdateSettings({ ...settings, seed: Date.now() });
   };
 
-  const handleFileImport = e => {
-    const file = e.target.files[0];
+  /**
+   * Import settings from a user-provided JSON file.
+   *
+   * @param {React.ChangeEvent<HTMLInputElement>} event - Change event.
+   */
+  const handleFileImport = event => {
+    const file = event.target.files[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = event => {
+    reader.onload = loadEvent => {
       try {
-        const importedSettings = onImportSettings(event.target.result);
+        const importedSettings = onImportSettings(loadEvent.target.result);
         if (importedSettings) {
           notifyUser('Settings imported successfully!');
         } else {
@@ -99,8 +157,129 @@ const SettingsPanel = ({
       <h3 className="text-xl font-semibold mb-4">Game Settings</h3>
 
       <div className="space-y-6">
-        {/* Grid Size */}
+        {/* Algorithm Selection */}
         <div>
+          <label htmlFor="algorithm" className="block text-sm font-medium text-gray-300 mb-2">
+            AI Algorithm
+          </label>
+          <select
+            id="algorithm"
+            className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-blue-500"
+            value={currentAlgorithm}
+            onChange={handleAlgorithmChange}
+          >
+            <optgroup label="Hamiltonian-Based">
+              <option value={ALGORITHMS.HAMILTONIAN}>
+                {ALGORITHM_INFO[ALGORITHMS.HAMILTONIAN].name}
+              </option>
+              <option value={ALGORITHMS.HAMILTONIAN_SHORTCUTS}>
+                {ALGORITHM_INFO[ALGORITHMS.HAMILTONIAN_SHORTCUTS].name}
+              </option>
+            </optgroup>
+            <optgroup label="Graph Search">
+              <option value={ALGORITHMS.ASTAR}>
+                {ALGORITHM_INFO[ALGORITHMS.ASTAR].name}
+              </option>
+              <option value={ALGORITHMS.BFS} disabled>
+                BFS (Coming Soon)
+              </option>
+              <option value={ALGORITHMS.GREEDY} disabled>
+                Greedy (Coming Soon)
+              </option>
+            </optgroup>
+            <optgroup label="Learning-Based">
+              <option value={ALGORITHMS.REINFORCEMENT_LEARNING} disabled>
+                Reinforcement Learning (Coming Soon)
+              </option>
+            </optgroup>
+          </select>
+
+          {/* Algorithm Info Card */}
+          {algorithmInfo && (
+            <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl">
+              <div className="flex items-start gap-2 mb-2">
+                <Info className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-gray-300">{algorithmInfo.description}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span className="text-green-400">✓ Pros:</span>
+                  <ul className="text-gray-400 ml-4 mt-1">
+                    {algorithmInfo.pros.map((pro, index) => (
+                      <li key={index}>• {pro}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <span className="text-red-400">✗ Cons:</span>
+                  <ul className="text-gray-400 ml-4 mt-1">
+                    {algorithmInfo.cons.map((con, index) => (
+                      <li key={index}>• {con}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Algorithm-Specific Settings */}
+        {currentAlgorithm === ALGORITHMS.HAMILTONIAN_SHORTCUTS && (
+          <div className="border-t border-white/10 pt-4">
+            <h4 className="text-lg font-medium text-gray-200 mb-3">Shortcut Tuning</h4>
+
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="safety-buffer" className="block text-sm font-medium text-gray-300 mb-2">
+                  Safety Buffer: {settings.safetyBuffer ?? 2}
+                </label>
+                <input
+                  id="safety-buffer"
+                  type="range"
+                  min="1"
+                  max="10"
+                  value={settings.safetyBuffer ?? 2}
+                  onChange={event =>
+                    onUpdateSettings({
+                      ...settings,
+                      safetyBuffer: Number.parseInt(event.target.value, 10),
+                    })
+                  }
+                  className="w-full accent-blue-500"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Minimum distance from tail when taking shortcuts
+                </p>
+              </div>
+
+              <div>
+                <label htmlFor="late-game-lock" className="block text-sm font-medium text-gray-300 mb-2">
+                  Late Game Lock: {settings.lateGameLock ?? 0}
+                </label>
+                <input
+                  id="late-game-lock"
+                  type="range"
+                  min="0"
+                  max="10"
+                  value={settings.lateGameLock ?? 0}
+                  onChange={event =>
+                    onUpdateSettings({
+                      ...settings,
+                      lateGameLock: Number.parseInt(event.target.value, 10),
+                    })
+                  }
+                  className="w-full accent-blue-500"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Free cells required before disabling shortcuts
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Grid Size */}
+        <div className="border-t border-white/10 pt-4">
           <label htmlFor="grid-size" className="block text-sm font-medium text-gray-300 mb-2">
             Grid Size
           </label>
@@ -130,71 +309,15 @@ const SettingsPanel = ({
               className="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               value={settings.seed}
               onChange={handleSeedChange}
-              placeholder="Enter seed for deterministic gameplay"
+              placeholder="Enter seed"
             />
             <button
               onClick={handleRandomSeed}
-              className="px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-white hover:bg-white/20 transition-colors"
+              className="px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-white hover:bg-white/20"
               title="Generate random seed"
             >
               <RotateCcw className="w-4 h-4" />
             </button>
-          </div>
-          <p className="text-xs text-gray-400 mt-1">
-            Same seed produces identical gameplay for testing
-          </p>
-        </div>
-
-        {/* Algorithm Settings */}
-        <div>
-          <h4 className="text-lg font-medium text-gray-200 mb-3">Algorithm Tuning</h4>
-
-          <div className="space-y-4">
-            <div>
-              <label className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  checked={settings.shortcutsEnabled}
-                  onChange={e =>
-                    onUpdateSettings({
-                      ...settings,
-                      shortcutsEnabled: e.target.checked,
-                    })
-                  }
-                  className="w-4 h-4 text-blue-600 bg-white/10 border-white/20 rounded focus:ring-blue-500"
-                />
-                <span className="text-sm text-gray-300">Enable Smart Shortcuts</span>
-              </label>
-              <p className="text-xs text-gray-400 mt-1 ml-7">
-                Allow AI to take safe shortcuts to reach fruit faster
-              </p>
-            </div>
-
-            <div>
-              <label
-                htmlFor="safety-buffer"
-                className="block text-sm font-medium text-gray-300 mb-2"
-              >
-                Safety Buffer: {settings.safetyBuffer || 2}
-              </label>
-              <input
-                id="safety-buffer"
-                type="range"
-                min="1"
-                max="10"
-                value={settings.safetyBuffer || 2}
-                onChange={e =>
-                  onUpdateSettings({
-                    ...settings,
-                    safetyBuffer: parseInt(e.target.value),
-                  })
-                }
-                className="w-full accent-blue-500"
-              />
-              <p className="text-xs text-gray-400 mt-1">
-                Minimum distance from tail when taking shortcuts
-              </p>
-            </div>
           </div>
         </div>
 
@@ -205,24 +328,22 @@ const SettingsPanel = ({
           <div className="flex flex-wrap gap-2">
             <button
               onClick={onExportSettings}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-xl hover:bg-blue-500/30 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-xl hover:bg-blue-500/30"
             >
               <Download className="w-4 h-4" />
-              Export Settings
+              Export
             </button>
-
-            <label className="flex items-center gap-2 px-4 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl hover:bg-green-500/30 transition-colors cursor-pointer">
+            <label className="flex items-center gap-2 px-4 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl hover:bg-green-500/30 cursor-pointer">
               <Upload className="w-4 h-4" />
-              Import Settings
+              Import
               <input type="file" accept=".json" onChange={handleFileImport} className="hidden" />
             </label>
-
             <button
               onClick={onClearData}
-              className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl hover:bg-red-500/30 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl hover:bg-red-500/30"
             >
               <RotateCcw className="w-4 h-4" />
-              Clear All Data
+              Clear Data
             </button>
           </div>
         </div>
@@ -236,8 +357,10 @@ SettingsPanel.propTypes = {
     cols: PropTypes.number.isRequired,
     rows: PropTypes.number.isRequired,
     seed: PropTypes.number.isRequired,
-    shortcutsEnabled: PropTypes.bool.isRequired,
-    safetyBuffer: PropTypes.number.isRequired,
+    pathfindingAlgorithm: PropTypes.string,
+    safetyBuffer: PropTypes.number,
+    lateGameLock: PropTypes.number,
+    shortcutsEnabled: PropTypes.bool,
   }).isRequired,
   onUpdateSettings: PropTypes.func.isRequired,
   onExportSettings: PropTypes.func.isRequired,
