@@ -26,6 +26,9 @@ export class PathfindingStrategy {
 
     /** @type {boolean} */
     this.initialized = false;
+
+    /** @type {boolean} */
+    this.requiresCycle = false;
   }
 
   /**
@@ -68,6 +71,7 @@ export class PathfindingStrategy {
       algorithm: this.name,
       config: { ...this.config },
       initialized: this.initialized,
+      requiresCycle: this.requiresCycle,
     };
   }
 
@@ -97,5 +101,163 @@ export class PathfindingStrategy {
    */
   async dispose() {
     this.initialized = false;
+  }
+}
+
+/**
+ * Base class for graph-based pathfinding algorithms (A*, Dijkstra, BFS).
+ */
+export class GraphPathfindingStrategy extends PathfindingStrategy {
+  /**
+   * Create a graph-based strategy instance.
+   *
+   * @param {Object} [config={}] - Optional strategy configuration.
+   */
+  constructor(config = {}) {
+    super(config);
+    this.requiresCycle = false;
+    this.isExpensive = true;
+  }
+
+  /**
+   * Heuristic function for A* style algorithms.
+   *
+   * The default implementation returns the Manhattan distance between the two
+   * cells which works well for 4-connected grids. Subclasses can override this
+   * to provide domain specific heuristics.
+   *
+   * @param {number} from - Flattened index of the starting cell.
+   * @param {number} to - Flattened index of the destination cell.
+   * @param {import('./GameStateAdapter.js').StandardGameState} state -
+   *   Normalized state for accessing board dimensions.
+   * @returns {number} Estimated distance from `from` to `to`.
+   */
+  heuristic(from, to, state) {
+    const { cols } = state.config;
+    const fromRow = Math.floor(from / cols);
+    const fromCol = from % cols;
+    const toRow = Math.floor(to / cols);
+    const toCol = to % cols;
+    return Math.abs(fromRow - toRow) + Math.abs(fromCol - toCol);
+  }
+
+  /**
+   * Compute valid neighbor cells for a position.
+   *
+   * @param {number} cellIndex - Flattened index of the current cell.
+   * @param {import('./GameStateAdapter.js').StandardGameState} state -
+   *   Normalized state describing the board and snake.
+   * @returns {number[]} Array of neighbor cell indices.
+   */
+  getNeighbors(cellIndex, state) {
+    const { rows, cols } = state.config;
+    const row = Math.floor(cellIndex / cols);
+    const col = cellIndex % cols;
+    const neighbors = [];
+    const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+
+    for (const [dr, dc] of directions) {
+      const newRow = row + dr;
+      const newCol = col + dc;
+      if (newRow >= 0 && newRow < rows && newCol >= 0 && newCol < cols) {
+        const neighborCell = newRow * cols + newCol;
+        if (!state.original.snake.occupied.has(neighborCell)) {
+          neighbors.push(neighborCell);
+        }
+      }
+    }
+
+    return neighbors;
+  }
+
+  /**
+   * Reconstruct a path from a parent map.
+   *
+   * @param {Map<number, number>} cameFrom - Mapping of node to its parent.
+   * @param {number} current - Index of the final node in the path.
+   * @returns {number[]} Ordered list of nodes describing the path.
+   */
+  reconstructPath(cameFrom, current) {
+    const path = [current];
+    let node = current;
+    while (cameFrom.has(node)) {
+      node = cameFrom.get(node);
+      path.unshift(node);
+    }
+    return path;
+  }
+}
+
+/**
+ * Base class for learning-based strategies (reinforcement learning, etc.).
+ */
+export class LearningStrategy extends PathfindingStrategy {
+  /**
+   * Create a learning strategy instance.
+   *
+   * @param {Object} [config={}] - Optional strategy configuration.
+   */
+  constructor(config = {}) {
+    super(config);
+    this.requiresCycle = false;
+    this.isExpensive = true;
+    this.model = null;
+    this.trainingData = [];
+  }
+
+  /**
+   * Initialize the strategy and attempt to load any persisted models.
+   *
+   * @param {Object} initialState - Raw engine game state.
+   * @returns {Promise<void>} Resolves when initialization completes.
+   */
+  async initialize(initialState) {
+    await super.initialize(initialState);
+    await this.loadModel();
+  }
+
+  /**
+   * Load a previously trained model.
+   *
+   * Subclasses should override this method when they need to hydrate a
+   * persisted model from storage or network resources.
+   *
+   * @returns {Promise<void>} Resolves when the model has been loaded.
+   */
+  async loadModel() { // eslint-disable-line class-methods-use-this
+    // To be implemented by subclasses when necessary.
+  }
+
+  /**
+   * Persist the current model.
+   *
+   * Subclasses should override this method to save learned parameters between
+   * sessions.
+   *
+   * @returns {Promise<void>} Resolves when persistence is complete.
+   */
+  async saveModel() { // eslint-disable-line class-methods-use-this
+    // To be implemented by subclasses when necessary.
+  }
+
+  /**
+   * Record a training experience tuple.
+   *
+   * @param {Object} state - Observed game state.
+   * @param {string} action - Action taken in the state.
+   * @param {number} reward - Reward signal observed after acting.
+   */
+  recordTrainingData(state, action, reward) {
+    this.trainingData.push({ state, action, reward });
+  }
+
+  /**
+   * Dispose the strategy and persist any learned knowledge.
+   *
+   * @returns {Promise<void>} Resolves when cleanup is finished.
+   */
+  async dispose() {
+    await this.saveModel();
+    await super.dispose();
   }
 }
