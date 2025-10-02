@@ -52,7 +52,6 @@ export class PathfindingStrategy {
    */
   async initialize(initialState) {
     // eslint-disable-line no-unused-vars
-
     this.initialized = true;
   }
 
