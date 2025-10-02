@@ -34,6 +34,8 @@ export function getPathfindingManager() {
 
 /**
  * Ensure the manager is configured with the desired strategy.
+ * Reinitializes strategies when the provided state reference changes to avoid
+ * stale cached data between game sessions.
  *
  * @param {Object} initialState - Game state used for initialization.
  * @param {Object} [options] - Strategy options.
@@ -47,10 +49,15 @@ export async function ensurePathfindingStrategy(initialState, options = {}) {
   const algorithm = options.algorithm || ALGORITHMS.HAMILTONIAN;
   const { name, strategy } = manager.getActiveStrategy();
 
+  const stateChanged = Boolean(initialState) && initialState !== manager.lastInitializedState;
+  const forceInitialize = Boolean(options.forceInitialize);
+
   if (!strategy || name !== algorithm) {
     await manager.setStrategy(algorithm, options.config ?? {}, initialState);
-  } else if (initialState && (options.forceInitialize || !strategy.initialized)) {
+    manager.lastInitializedState = initialState || null;
+  } else if (stateChanged || forceInitialize || !strategy.initialized) {
     await manager.initializeStrategy(initialState);
+    manager.lastInitializedState = initialState || null;
   }
 
   return manager;
