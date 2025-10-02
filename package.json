@@ -11,6 +11,7 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
+    "test:ci": "vitest --run --reporter=verbose --coverage",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint . --ext js,jsx --fix",
     "format": "prettier --write .",
@@ -19,6 +20,9 @@
     "simulate": "node scripts/simulate.js",
     "optimize": "node scripts/optimize.js",
     "analyze": "node scripts/analyze-results.js",
+    "quality": "npm run lint && npm run format:check && npm run test:ci",
+    "quality:fix": "npm run lint:fix && npm run format && npm run test",
+    "pre-commit": "lint-staged && npm run test -- --run --reporter=basic",
     "prepare": "husky install"
   },
   "dependencies": {
@@ -53,11 +57,19 @@
   },
   "lint-staged": {
     "*.{js,jsx}": [
-      "eslint --fix",
-      "prettier --write"
+      "eslint --fix --max-warnings 0",
+      "prettier --write",
+      "git add"
     ],
     "*.{json,css,md}": [
-      "prettier --write"
+      "prettier --write",
+      "git add"
+    ],
+    "*.{js,jsx,json,css,md}": [
+      "git add"
+    ],
+    "src/**/*.{js,jsx}": [
+      "eslint --fix --max-warnings 0"
     ]
   },
   "engines": {
