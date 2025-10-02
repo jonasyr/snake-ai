@@ -1,12 +1,17 @@
 # Project Agents.md Guide for OpenAI Codex
 
-This Agents.md file provides comprehensive guidance for OpenAI Codex and other AI agents working with this codebase.
+This Agents.md file provides comprehensive guidance for OpenAI Codex and other AI agents working
+with this codebase.
 
 ## Project Overview for AI Agents
 
-This is a **Snake AI** project implementing autonomous Snake gameplay using Hamiltonian cycle pathfinding with intelligent shortcuts. The project demonstrates advanced game engine architecture, multi-strategy pathfinding, performance optimization, and comprehensive testing practices.
+This is a **Snake AI** project implementing autonomous Snake gameplay using Hamiltonian cycle
+pathfinding with intelligent shortcuts. The project demonstrates advanced game engine architecture,
+multi-strategy pathfinding, performance optimization, and comprehensive testing practices.
 
-**Core Concept**: An AI-controlled Snake that can use multiple pathfinding strategies, from guaranteed-safe Hamiltonian cycles to aggressive A* pathfinding, with smart shortcuts to optimize performance.
+**Core Concept**: An AI-controlled Snake that can use multiple pathfinding strategies, from
+guaranteed-safe Hamiltonian cycles to aggressive A\* pathfinding, with smart shortcuts to optimize
+performance.
 
 ## Project Structure for AI Code Generation
 
@@ -62,6 +67,7 @@ This is a **Snake AI** project implementing autonomous Snake gameplay using Hami
 ## Technology Stack & Dependencies
 
 **Core Technologies:**
+
 - **React 19.1.1** - UI framework with latest hooks
 - **Vite 7.1.2** - Build tool and development server
 - **Tailwind CSS v4.1.12** - Utility-first styling (latest version)
@@ -69,10 +75,12 @@ This is a **Snake AI** project implementing autonomous Snake gameplay using Hami
 - **ESLint 9.33.0** - Code quality and standards
 
 **Key Libraries:**
+
 - `lucide-react` - Icon system
 - `prop-types` - Runtime type checking for React components
 
 **Development Tools:**
+
 - `jsdom` - DOM simulation for tests
 - `husky` - Git hooks
 - `lint-staged` - Pre-commit linting
@@ -81,7 +89,9 @@ This is a **Snake AI** project implementing autonomous Snake gameplay using Hami
 ## Architectural Principles for AI Agents
 
 ### 1. **Pure Functional Engine Layer**
+
 The `src/engine/` directory contains **pure functions only**. AI agents must:
+
 - Never introduce side effects in engine functions
 - Maintain referential transparency
 - Use immutable data transformations
@@ -104,21 +114,23 @@ export function moveSnake(snake, newHead, grow = false) {
 ```
 
 ### 2. **State Management Hierarchy**
+
 - **Engine Layer**: Pure state transitions with object pooling
 - **Game Layer**: Game loop with sequential update queue to prevent re-entrancy
 - **UI Layer**: React state with memoization for performance
 - **Simulation Layer**: Batch processing without UI overhead
 
 ### 3. **Pathfinding Architecture** (CRITICAL NEW SYSTEM)
+
 The project now uses a **strategy pattern** for pathfinding:
 
 ```javascript
 // Strategies available:
 const ALGORITHMS = {
-  HAMILTONIAN: 'hamiltonian',              // Pure cycle following
-  HAMILTONIAN_SHORTCUTS: 'hamiltonian-shortcuts',  // With smart shortcuts
-  ASTAR: 'astar',                          // A* search to fruit
-  BFS: 'bfs',                              // Breadth-first search
+  HAMILTONIAN: 'hamiltonian', // Pure cycle following
+  HAMILTONIAN_SHORTCUTS: 'hamiltonian-shortcuts', // With smart shortcuts
+  ASTAR: 'astar', // A* search to fruit
+  BFS: 'bfs', // Breadth-first search
   // More strategies can be added by implementing PathfindingStrategy
 };
 
@@ -127,7 +139,7 @@ import { ensurePathfindingStrategy } from '../engine/pathfinding/index.js';
 
 const manager = await ensurePathfindingStrategy(gameState, {
   algorithm: 'hamiltonian-shortcuts',
-  config: { safetyBuffer: 3, lateGameLock: 2 }
+  config: { safetyBuffer: 3, lateGameLock: 2 },
 });
 
 const plan = await manager.planMove(gameState, options);
@@ -135,13 +147,16 @@ const plan = await manager.planMove(gameState, options);
 ```
 
 **Adding New Strategies:**
+
 1. Extend `PathfindingStrategy` or `GraphPathfindingStrategy`
 2. Implement `async planNextMove(standardState, options)`
 3. Register in `algorithmRegistry.js`
 4. Add default config in `ALGORITHM_DEFAULT_CONFIGS`
 
 ### 4. **Performance-First Design**
+
 AI agents should prioritize performance optimizations:
+
 - **Circular Buffer**: Snake state uses circular buffer for O(1) moves
 - **Object Pooling**: Game states and planner data are pooled to reduce GC
 - **Set/Map Usage**: O(1) lookups for occupied cells and cycle positions
@@ -150,21 +165,25 @@ AI agents should prioritize performance optimizations:
 - **Worker Pool**: Expensive pathfinding can run off main thread
 
 **Example - Object Pool Pattern:**
+
 ```javascript
 const statePool = createObjectPool(
-  () => ({ ...initialState }),              // Create function
-  (state) => { /* reset state */ },         // Reset function
-  256                                        // Max pool size
+  () => ({ ...initialState }), // Create function
+  state => {
+    /* reset state */
+  }, // Reset function
+  256 // Max pool size
 );
 
-const state = statePool.get();              // Acquire from pool
+const state = statePool.get(); // Acquire from pool
 // ... use state ...
-statePool.release(state);                   // Return to pool
+statePool.release(state); // Return to pool
 ```
 
 ## Coding Conventions for AI Agents
 
 ### **JavaScript/JSDoc Standards**
+
 - **Documentation**: Every function must have comprehensive JSDoc comments
 - **Naming**: Use descriptive camelCase names, UPPER_SNAKE_CASE for constants
 - **Error Handling**: Always include proper error boundaries and validation
@@ -184,6 +203,7 @@ export function cyclicDistance(from, to, cycleLength) {
 ```
 
 ### **React Component Standards**
+
 - Use **functional components with hooks only**
 - Implement `PropTypes` for all props
 - Use `React.memo` for performance optimization when appropriate
@@ -193,11 +213,14 @@ export function cyclicDistance(from, to, cycleLength) {
 ```javascript
 const GameCanvas = ({ gameState, settings, visualOptions }) => {
   // Memoize expensive computations
-  const drawOptions = useMemo(() => ({
-    showCycle: visualOptions.showCycle,
-    showShortcuts: visualOptions.showShortcuts,
-  }), [visualOptions.showCycle, visualOptions.showShortcuts]);
-  
+  const drawOptions = useMemo(
+    () => ({
+      showCycle: visualOptions.showCycle,
+      showShortcuts: visualOptions.showShortcuts,
+    }),
+    [visualOptions.showCycle, visualOptions.showShortcuts]
+  );
+
   // Component implementation
 };
 
@@ -213,6 +236,7 @@ export default React.memo(GameCanvas);
 ```
 
 ### **Canvas Rendering Conventions**
+
 - Use `pixelated` image rendering for retro aesthetics
 - Implement **incremental rendering** - only redraw changed cells
 - Create static background layer for grid and cycle
@@ -238,6 +262,7 @@ function render(ctx, state) {
 ```
 
 ### **localStorage Usage Guidelines** (IMPORTANT)
+
 - **✅ ALLOWED**: Main application code (`src/game/settings.js`)
 - **❌ FORBIDDEN**: Web Workers, artifacts, isolated contexts
 - **Alternative**: Use React state, memory, or worker messages
@@ -254,13 +279,14 @@ self.addEventListener('message', () => {
 });
 
 // ✅ CORRECT - In worker, use messages
-self.addEventListener('message', (event) => {
+self.addEventListener('message', event => {
   const result = compute(event.data);
   self.postMessage({ result }); // Send back to main thread
 });
 ```
 
 ### **Testing Requirements**
+
 - **Unit Tests**: Test individual functions in isolation with deterministic seeds
 - **Integration Tests**: Test component interactions and game flow
 - **Simulation Tests**: Test batch game running and parameter exploration
@@ -289,6 +315,7 @@ describe('Game Engine Integration', () => {
 ## File Organization Patterns
 
 ### **Module Exports**
+
 - Use **named exports** for utilities and functions
 - Use **default exports** for React components
 - Group related exports in index files
@@ -296,8 +323,12 @@ describe('Game Engine Integration', () => {
 
 ```javascript
 // ✅ Engine module exports
-export function moveSnake(snake, newHead, grow) { /* ... */ }
-export function getHead(snake) { /* ... */ }
+export function moveSnake(snake, newHead, grow) {
+  /* ... */
+}
+export function getHead(snake) {
+  /* ... */
+}
 export const DIRECTIONS = { UP, DOWN, LEFT, RIGHT };
 
 // ✅ React component exports
@@ -305,6 +336,7 @@ export default React.memo(GameCanvas);
 ```
 
 ### **Import Organization**
+
 ```javascript
 // 1. External libraries (React, third-party)
 import React, { useEffect, useState, useCallback } from 'react';
@@ -324,6 +356,7 @@ import { DEFAULT_CONFIG, COLORS } from '../utils/constants.js';
 ## Performance Optimization Guidelines
 
 ### **Critical Performance Areas**
+
 1. **Canvas Rendering**: Incremental updates, static layer caching
 2. **Game Loop**: Fixed timestep with accumulator, sequential update queue
 3. **Pathfinding**: Worker pool for expensive strategies, strategy switching
@@ -333,30 +366,34 @@ import { DEFAULT_CONFIG, COLORS } from '../utils/constants.js';
 ### **Optimization Patterns AI Agents Should Follow**
 
 **Object Pooling:**
+
 ```javascript
 // Create pools for frequently allocated objects
 const statePool = createObjectPool(
-  () => ({ /* initial state */ }),
-  (state) => { /* reset state */ },
-  256  // Max pool size
+  () => ({
+    /* initial state */
+  }),
+  state => {
+    /* reset state */
+  },
+  256 // Max pool size
 );
 
 // Use in hot paths
 const state = statePool.get();
 // ... use state ...
-statePool.release(state);  // Return to pool when done
+statePool.release(state); // Return to pool when done
 ```
 
 **Memoization:**
+
 ```javascript
 // Memoize expensive calculations
-const memoizedPath = useMemo(
-  () => calculatePath(from, to, obstacles),
-  [from, to, obstacles]
-);
+const memoizedPath = useMemo(() => calculatePath(from, to, obstacles), [from, to, obstacles]);
 ```
 
 **Circular Queue for BFS:**
+
 ```javascript
 import { CircularQueue } from '../utils/collections.js';
 
@@ -371,6 +408,7 @@ while (!queue.isEmpty()) {
 ## Testing Strategy for AI Agents
 
 ### **Running Tests**
+
 ```bash
 # Run all tests
 npm test
@@ -389,12 +427,14 @@ npm test -- --watch
 ```
 
 ### **Test File Organization**
+
 - `src/tests/engine/` - Engine module unit tests (pure functions)
 - `src/tests/integration/` - Cross-module integration tests
 - `src/tests/simulation/` - Batch simulation tests
 - `src/tests/setup.js` - Test environment configuration (mocks Canvas, RAF)
 
 ### **Testing Patterns**
+
 ```javascript
 // ✅ Proper test structure with seeded RNG
 import { seed } from '../../engine/rng.js';
@@ -419,33 +459,86 @@ describe('Game Engine Integration', () => {
 
 ## Development Workflow
 
-### **Code Quality Checks**
+### **Pre-commit Quality Assurance** (AUTOMATED)
+
+The project includes comprehensive **Husky pre-commit hooks** that automatically enforce code
+quality:
+
 ```bash
-# Linting (runs ESLint with project config)
-npm run lint
-npm run lint:fix
+# These run automatically on every commit:
+🔍 lint-staged     # Auto-format and lint staged files
+✨ ESLint check    # Zero warnings policy
+🧪 Test suite     # Full test validation
+🏗️ Build check    # Production build verification
 
-# Formatting (uses Prettier)
-npm run format
-npm run format:check
+# These run automatically on git push:
+📊 Coverage tests  # Full test suite with coverage
+🎮 Simulation     # Quick game logic validation
+🚀 Final build    # Production deployment check
+```
 
-# Build verification
-npm run build
+**Key Benefits:**
 
-# All checks before commit
-npm run lint && npm run format:check && npm test
+- **Zero-config**: Works automatically after `npm install`
+- **Fast feedback**: Catches issues before they enter the codebase
+- **Consistent quality**: Enforces standards across all contributors
+- **Conventional commits**: Validates commit message format
+
+### **Manual Quality Checks** (OPTIONAL)
+
+```bash
+# Individual quality checks (useful for debugging)
+npm run lint              # Check code with ESLint
+npm run lint:fix          # Auto-fix ESLint issues
+npm run format            # Format code with Prettier
+npm run format:check      # Verify formatting without changes
+
+# Comprehensive quality validation
+npm run quality           # Run all checks (lint + format + test)
+npm run quality:fix       # Fix all auto-fixable issues
+
+# Testing options
+npm run test              # Interactive test runner (watch mode)
+npm run test:coverage     # Tests with coverage report
+npm run test:ci           # CI-friendly test run (no watch)
+npm run test:ui           # Visual test interface
+
+# Pre-commit simulation (manual)
+npm run pre-commit        # Simulate the pre-commit hook
 ```
 
 ### **Development Server**
+
 ```bash
 # Start development server (Vite)
 npm run dev
 
 # Preview production build
 npm run preview
+
+# Build for production
+npm run build
+```
+
+### **Git Workflow Integration**
+
+```bash
+# Standard workflow - hooks run automatically:
+git add .
+git commit -m "feat(pathfinding): add new A* strategy"  # ✅ Validated format
+git push  # ✅ Full quality gates
+
+# Emergency bypass (USE SPARINGLY):
+git commit --no-verify -m "emergency: hotfix"  # ⚠️ Skip pre-commit
+git push --no-verify                           # ⚠️ Skip pre-push
+
+# Commit message format (enforced):
+# <type>[optional scope]: <description>
+# Types: feat, fix, docs, style, refactor, perf, test, chore, ci, build, revert
 ```
 
 ### **Batch Simulation CLI**
+
 ```bash
 # Run 1000 games with detailed output
 npm run simulate -- --games 1000 --rows 20 --cols 20 --details
@@ -461,6 +554,7 @@ npm run simulate -- --games 1000 --shortcutsEnabled=false
 ```
 
 ### **Parameter Optimization** (NEW TOOLS)
+
 ```bash
 # Quick parameter discovery
 npm run optimize -- --games 1000 --samples 100
@@ -479,9 +573,26 @@ npm run simulate:sweep -- \
   --output sweep-results.json
 ```
 
+### **Quality Gates Summary**
+
+Your development workflow now includes these **automated quality gates**:
+
+```
+📝 Conventional Commit Format ✅ (commit-msg hook)
+🔍 Code Linting (ESLint)     ✅ (pre-commit hook)
+✨ Code Formatting (Prettier) ✅ (pre-commit hook)
+🧪 Unit & Integration Tests  ✅ (pre-commit + pre-push)
+🏗️ Build Verification       ✅ (pre-commit + pre-push)
+📊 Test Coverage Reporting  ✅ (pre-push hook)
+🎮 Game Logic Simulation    ✅ (pre-push hook)
+```
+
+**No manual intervention required** - the hooks ensure consistent quality automatically!
+
 ## Critical Implementation Notes for AI Agents
 
 ### **Never Modify These Patterns**
+
 1. **Hamiltonian Cycle Logic**: Mathematically precise, handles both even rows and even columns
 2. **RNG Seeding**: Maintains deterministic gameplay for testing and reproducibility
 3. **Collision Detection**: Critical for game integrity
@@ -489,6 +600,7 @@ npm run simulate:sweep -- \
 5. **Circular Buffer**: Snake state implementation - maintains O(1) operations
 
 ### **Safe Areas for Enhancement**
+
 1. **New Pathfinding Strategies**: Implement new PathfindingStrategy subclasses
 2. **UI Components**: Visual improvements and new features
 3. **Performance Optimizations**: Additional caching, memoization, pooling
@@ -498,6 +610,7 @@ npm run simulate:sweep -- \
 7. **CLI Tools**: New simulation or analysis scripts
 
 ### **Pathfinding Strategy Implementation Pattern**
+
 ```javascript
 // To add a new pathfinding strategy:
 
@@ -541,6 +654,7 @@ const ALGORITHM_DEFAULT_CONFIGS = {
 ```
 
 ### **Error Handling Requirements**
+
 - Always validate inputs in public functions
 - Use proper error boundaries in React components
 - Log errors appropriately but don't break game flow
@@ -554,7 +668,7 @@ try {
   pathPlan = await manager.planMove(gameState, config);
 } catch (error) {
   console.error('Pathfinding error:', error);
-  pathPlan = null;  // Fall back to cycle following
+  pathPlan = null; // Fall back to cycle following
 }
 
 if (!isValidCellIndex(nextCell, totalCells)) {
@@ -574,6 +688,7 @@ if (!isValidCellIndex(nextCell, totalCells)) {
 ## Pull Request Guidelines
 
 When creating PRs, AI agents should ensure:
+
 1. **Clear Description**: Explain changes and rationale, reference algorithm/strategy if applicable
 2. **Test Coverage**: Include or update relevant tests, especially for engine changes
 3. **Performance Impact**: Document any performance implications (profiling if significant)
@@ -588,7 +703,8 @@ AI agents working with this codebase are considered successful when they:
 
 1. **Maintain Architecture**: Preserve clean separation between engine/game/UI layers
 2. **Enhance Performance**: Improve frame rates, reduce memory usage, optimize hot paths
-3. **Extend Functionality**: Add features (strategies, visualizations) without breaking existing behavior
+3. **Extend Functionality**: Add features (strategies, visualizations) without breaking existing
+   behavior
 4. **Follow Conventions**: Match established coding patterns and standards
 5. **Pass All Tests**: Ensure comprehensive test coverage for new code
 6. **Document Thoroughly**: Provide clear JSDoc and inline comments
