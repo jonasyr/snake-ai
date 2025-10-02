@@ -308,13 +308,12 @@ export async function gameTick(gameState) {
     : workingState.fruit;
 
   const plannerData = acquirePlannerData();
-  calculatePlannedPath(
-    newSnake,
-    nextFruit,
-    workingState.cycle,
-    workingState.cycleIndex,
-    plannerData.plannedPath
-  );
+
+  if (Array.isArray(pathPlan?.plannedPath)) {
+    for (let i = 0; i < pathPlan.plannedPath.length; i += 1) {
+      plannerData.plannedPath.push(pathPlan.plannedPath[i]);
+    }
+  }
 
   if (pathPlan.isShortcut) {
     const edge = plannerData.edgeCache;
@@ -357,45 +356,6 @@ export async function gameTick(gameState) {
       pathInfo: pathPlan,
     },
   };
-}
-
-/**
- * Calculate planned path from head to fruit
- * @param {Object} snake - Snake state
- * @param {number} fruit - Fruit position
- * @param {number[]} cycle - Hamiltonian cycle
- * @param {Map} cycleIndex - Cycle position lookup
- * @param {number[]} target - Target array to populate with planned path
- * @returns {number[]} Planned path array
- */
-function calculatePlannedPath(snake, fruit, cycle, cycleIndex, target) {
-  if (!Array.isArray(target)) {
-    return [];
-  }
-
-  target.length = 0;
-
-  if (!snake || getLength(snake) === 0 || fruit < 0 || !cycle || !cycleIndex) {
-    return target;
-  }
-
-  const headCell = getHead(snake);
-  const headPos = cycleIndex.get(headCell);
-  const fruitPos = cycleIndex.get(fruit);
-
-  if (headPos === undefined || fruitPos === undefined) {
-    return target;
-  }
-
-  let currentPos = headPos;
-  const maxSteps = Math.min(cycle.length, 20); // Limit path length for performance
-
-  while (currentPos !== fruitPos && target.length < maxSteps) {
-    currentPos = (currentPos + 1) % cycle.length;
-    target.push(cycle[currentPos]);
-  }
-
-  return target;
 }
 
 /**

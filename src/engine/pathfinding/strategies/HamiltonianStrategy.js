@@ -4,7 +4,7 @@
  */
 
 import { PathfindingStrategy } from '../PathfindingStrategy.js';
-import { getHead } from '../../snake.js';
+import { getHead, getLength } from '../../snake.js';
 import { cyclicDistance } from '../../../utils/math.js';
 import { isValidCellIndex } from '../../../utils/guards.js';
 
@@ -283,6 +283,47 @@ export class HamiltonianStrategy extends PathfindingStrategy {
       reason: 'Following Hamiltonian cycle',
       shortcutInfo: null,
     };
+  }
+
+  /**
+   * Calculate the planned path along the Hamiltonian cycle.
+   *
+   * @param {Object} gameState - Engine game state used for planning.
+   * @param {Object} planResult - Result from {@link planNextMove}.
+   * @returns {number[]} Planned path from the upcoming head position to the fruit.
+   */
+  calculatePlannedPath(gameState, planResult) {
+    const { snake, fruit, cycle, cycleIndex } = gameState ?? {};
+
+    if (!Array.isArray(cycle) || !cycleIndex || typeof cycleIndex.get !== 'function') {
+      return [];
+    }
+
+    if (!snake || getLength(snake) === 0 || !Number.isInteger(fruit) || fruit < 0) {
+      return [];
+    }
+
+    const startCell = Number.isInteger(planResult?.nextMove)
+      ? planResult.nextMove
+      : getHead(snake);
+
+    const headPos = cycleIndex.get(startCell);
+    const fruitPos = cycleIndex.get(fruit);
+
+    if (headPos === undefined || fruitPos === undefined) {
+      return [];
+    }
+
+    const path = [];
+    const maxSteps = Math.min(cycle.length, 20);
+    let currentPos = headPos;
+
+    while (currentPos !== fruitPos && path.length < maxSteps) {
+      currentPos = (currentPos + 1) % cycle.length;
+      path.push(cycle[currentPos]);
+    }
+
+    return path;
   }
 
   /**

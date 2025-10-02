@@ -106,11 +106,52 @@ export class PathfindingManager {
     const standardState = new StandardGameState(gameState);
     const execute = () => this.currentStrategy.planNextMove(standardState, options);
 
-    if (this.currentStrategy.isExpensive && this.workerPool.hasCapacity() && options.useWorker !== false) {
-      return this.workerPool.execute(execute);
+    const strategy = this.currentStrategy;
+
+    const planPromise = (strategy.isExpensive && this.workerPool.hasCapacity() && options.useWorker !== false)
+      ? this.workerPool.execute(execute)
+      : execute();
+
+    const result = await planPromise;
+
+    if (!result) {
+      return result;
     }
 
-    return execute();
+    if (Array.isArray(result.plannedPath)) {
+      return {
+        ...result,
+        plannedPath: result.plannedPath.slice(),
+      };
+    }
+
+    if (typeof strategy.calculatePlannedPath !== 'function') {
+      return result;
+    }
+
+    try {
+      const plannedPath = strategy.calculatePlannedPath(gameState, result);
+      if (!Array.isArray(plannedPath)) {
+        return {
+          ...result,
+          plannedPath: [],
+        };
+      }
+
+      return {
+        ...result,
+        plannedPath: plannedPath.slice(),
+      };
+    } catch (error) {
+      console.error('Failed to calculate planned path for strategy.', {
+        error,
+        strategy: this.currentStrategyName,
+      });
+      return {
+        ...result,
+        plannedPath: [],
+      };
+    }
   }
 
   /**

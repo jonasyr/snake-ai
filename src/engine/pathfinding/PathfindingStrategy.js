@@ -62,6 +62,21 @@ export class PathfindingStrategy {
   }
 
   /**
+   * Calculate a planned path for visualization purposes.
+   *
+   * Strategies may override this to provide algorithm specific insights. The
+   * default implementation returns an empty array which indicates that no
+   * visualization is available.
+   *
+   * @param {Object} gameState - Raw engine game state.
+   * @param {Object} planResult - Result returned from {@link planNextMove}.
+   * @returns {number[]} Planned path for visualization.
+   */
+  calculatePlannedPath(gameState, planResult) { // eslint-disable-line no-unused-vars
+    return [];
+  }
+
+  /**
    * Retrieve debug information describing the strategy.
    *
    * @returns {Object} Debug payload safe for logging or inspection.
