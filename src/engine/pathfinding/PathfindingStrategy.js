@@ -1,4 +1,5 @@
 // FILE: src/engine/pathfinding/PathfindingStrategy.js
+
 /**
  * @typedef {Object} PlanningResult
  * @property {number} nextMove - Flattened index of the cell to move into next.
@@ -51,6 +52,7 @@ export class PathfindingStrategy {
    */
   async initialize(initialState) {
     // eslint-disable-line no-unused-vars
+
     this.initialized = true;
   }
 
@@ -66,8 +68,8 @@ export class PathfindingStrategy {
    * @param {Object} [options={}] - Optional strategy specific overrides.
    * @returns {Promise<PlanningResult>} Planning result with the next move and metadata.
    */
+  // eslint-disable-next-line no-unused-vars
   async planNextMove(state, options = {}) {
-    // eslint-disable-line no-unused-vars
     const strategyName = this.constructor?.name ?? 'PathfindingStrategy';
     throw new Error(
       `${strategyName}.planNextMove must be implemented by subclasses`
@@ -103,18 +105,17 @@ export class PathfindingStrategy {
   }
 
   /**
-   * Calculate a planned path for visualization purposes.
+   * Calculate the planned path for visualization.
    *
-   * Strategies may override this to provide algorithm specific insights. The
-   * default implementation returns an empty array which indicates that no
+   * Subclasses may override this method to provide path data when
    * visualization is available.
    *
    * @param {Object} gameState - Raw engine game state.
    * @param {PlanningResult} planResult - Result returned from {@link planNextMove}.
    * @returns {number[]} Planned path for visualization.
    */
+  // eslint-disable-next-line no-unused-vars
   calculatePlannedPath(gameState, planResult) {
-    // eslint-disable-line no-unused-vars
     return [];
   }
 
