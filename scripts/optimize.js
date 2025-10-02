@@ -13,7 +13,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { Worker } from 'node:worker_threads';
 
-import { DEFAULT_CONFIG } from '../src/utils/constants.js';
+import { DEFAULT_CONFIG, createRuntimeConfig } from '../src/utils/constants.js';
 import { simulateGames } from '../src/simulation/simulator.js';
 
 /**
@@ -177,7 +177,7 @@ async function processBatch(configurations, options, monitor) {
         
         const { summary } = await simulateGames({
           games,
-          config: { ...DEFAULT_CONFIG, ...config },
+          config: createRuntimeConfig(config),
           uniqueSeeds: true,
           includeRuns: false,
         });

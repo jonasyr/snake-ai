@@ -9,7 +9,7 @@ import { generateHamiltonianCycle } from './hamiltonian.js';
 import { checkCollision } from './collision.js';
 import { ensurePathfindingStrategy } from './pathfinding/index.js';
 import { GAME_STATUS, MOVE_RESULT } from './types.js';
-import { DEFAULT_CONFIG } from '../utils/constants.js';
+import { DEFAULT_CONFIG, createRuntimeConfig, getAlgorithmConfig } from '../utils/constants.js';
 import { createObjectPool } from '../utils/collections.js';
 import { isValidCellIndex, validateGameConfig } from '../utils/guards.js';
 
@@ -150,7 +150,8 @@ export function releaseGameState(state) {
  * @returns {Object} Initial game state
  */
 export function initializeGame(config = DEFAULT_CONFIG) {
-  const { rows, cols, seed: rawSeed, ...otherConfig } = { ...DEFAULT_CONFIG, ...config };
+  const runtimeConfig = createRuntimeConfig(config);
+  const { rows, cols, seed: rawSeed } = runtimeConfig;
 
   const validation = validateGameConfig({ rows, cols, seed: rawSeed });
 
@@ -174,8 +175,15 @@ export function initializeGame(config = DEFAULT_CONFIG) {
   const snake = createSnake(startCell, hamiltonianData.cycle.length);
   const fruit = spawnFruit(snake.occupied, hamiltonianData.cycle.length);
 
+  const normalizedConfig = {
+    ...runtimeConfig,
+    rows,
+    cols,
+    seed,
+  };
+
   const initialState = acquireGameState();
-  initialState.config = { rows, cols, seed, ...otherConfig };
+  initialState.config = normalizedConfig;
   initialState.snake = snake;
   initialState.fruit = fruit;
   initialState.cycle = hamiltonianData.cycle;
@@ -236,21 +244,18 @@ export async function gameTick(gameState) {
 
   // Plan next move
   let pathPlan;
+  const runtimeConfig = createRuntimeConfig(workingState.config);
+  const algorithm = runtimeConfig.pathfindingAlgorithm ?? DEFAULT_CONFIG.pathfindingAlgorithm;
+  const algorithmConfig = getAlgorithmConfig(runtimeConfig, algorithm);
+
   try {
     const manager = await ensurePathfindingStrategy(workingState, {
-      algorithm: workingState.config?.pathfindingAlgorithm,
-      config: {
-        shortcutsEnabled: workingState.config?.shortcutsEnabled,
-        safetyBuffer: workingState.config?.safetyBuffer,
-        lateGameLock: workingState.config?.lateGameLock,
-        minShortcutWindow: workingState.config?.minShortcutWindow,
-      },
+      algorithm,
+      config: algorithmConfig,
       forceInitialize: workingState.moves === 0,
     });
 
-    pathPlan = await manager.planMove(workingState, {
-      shortcutsEnabled: workingState.config?.shortcutsEnabled,
-    });
+    pathPlan = await manager.planMove(workingState, algorithmConfig);
   } catch (error) {
     console.error('Pathfinding error encountered during game tick.', {
       error,

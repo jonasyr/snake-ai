@@ -3,7 +3,7 @@
 /* global process */
 // FILE: scripts/simulate.js
 import { simulateGames } from '../src/simulation/simulator.js';
-import { DEFAULT_CONFIG } from '../src/utils/constants.js';
+import { DEFAULT_CONFIG, getAlgorithmDefaultConfig } from '../src/utils/constants.js';
 
 /**
  * Convert an argv array into a dictionary of CLI flags. Flags may be specified
@@ -94,13 +94,22 @@ async function main() {
   const argv = process.argv.slice(2);
   const args = parseArgs(argv);
 
+  const algorithmArg = typeof args.algorithm === 'string'
+    ? args.algorithm
+    : (typeof args.pathfindingAlgorithm === 'string' ? args.pathfindingAlgorithm : undefined);
+  const algorithm = algorithmArg || DEFAULT_CONFIG.pathfindingAlgorithm;
+  const algorithmDefaults = getAlgorithmDefaultConfig(algorithm);
+
   const gameCount = toInteger(args.games ?? args.count, 1);
   const rows = toInteger(args.rows, DEFAULT_CONFIG.rows);
   const cols = toInteger(args.cols, DEFAULT_CONFIG.cols);
   const tickMs = args.tickMs !== undefined ? toNumber(args.tickMs, DEFAULT_CONFIG.tickMs) : undefined;
   const shortcutsEnabled =
     args.shortcutsEnabled !== undefined
-      ? toBoolean(args.shortcutsEnabled, DEFAULT_CONFIG.shortcutsEnabled)
+      ? toBoolean(
+        args.shortcutsEnabled,
+        algorithmDefaults.shortcutsEnabled ?? true,
+      )
       : undefined;
   const uniqueSeeds = toBoolean(args.uniqueSeeds, true);
   const includeRuns = toBoolean(args.details ?? args.includeRuns, false);
@@ -109,6 +118,7 @@ async function main() {
   const config = {
     rows,
     cols,
+    pathfindingAlgorithm: algorithm,
   };
 
   if (tickMs !== undefined) {
@@ -121,13 +131,29 @@ async function main() {
     config.seed = toInteger(args.seed, DEFAULT_CONFIG.seed);
   }
   if (args.safetyBuffer !== undefined) {
-    config.safetyBuffer = toInteger(args.safetyBuffer, DEFAULT_CONFIG.safetyBuffer);
+    const fallback = algorithmDefaults.safetyBuffer;
+    const parsed = toInteger(args.safetyBuffer, fallback);
+    if (parsed !== undefined) {
+      config.safetyBuffer = parsed;
+    }
   }
   if (args.lateGameLock !== undefined) {
-    config.lateGameLock = toInteger(args.lateGameLock, DEFAULT_CONFIG.lateGameLock);
+    const fallback = algorithmDefaults.lateGameLock;
+    const parsed = toInteger(args.lateGameLock, fallback);
+    if (parsed !== undefined) {
+      config.lateGameLock = parsed;
+    }
   }
   if (args.minShortcutWindow !== undefined) {
-    config.minShortcutWindow = toInteger(args.minShortcutWindow, DEFAULT_CONFIG.minShortcutWindow);
+    const fallback = algorithmDefaults.minShortcutWindow;
+    const parsed = toInteger(args.minShortcutWindow, fallback);
+    if (parsed !== undefined) {
+      config.minShortcutWindow = parsed;
+    }
+  }
+  if (args.allowDiagonals !== undefined) {
+    const fallback = algorithmDefaults.allowDiagonals ?? false;
+    config.allowDiagonals = toBoolean(args.allowDiagonals, fallback);
   }
 
   const { summary, runs } = await simulateGames({

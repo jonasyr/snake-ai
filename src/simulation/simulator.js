@@ -5,7 +5,7 @@
 
 import { initializeGame, setGameStatus, gameTick, getGameStats } from '../engine/gameEngine.js';
 import { GAME_STATUS } from '../engine/types.js';
-import { DEFAULT_CONFIG } from '../utils/constants.js';
+import { DEFAULT_CONFIG, createRuntimeConfig } from '../utils/constants.js';
 import { seed as setSeed } from '../engine/rng.js';
 
 const getTimestamp = () =>
@@ -14,7 +14,7 @@ const getTimestamp = () =>
     : Date.now();
 
 function normalizeConfig(config = {}) {
-  return { ...DEFAULT_CONFIG, ...config };
+  return createRuntimeConfig(config);
 }
 
 function prepareConfig(baseConfig, index, uniqueSeeds) {

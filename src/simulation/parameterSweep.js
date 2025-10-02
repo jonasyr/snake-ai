@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { simulateGames } from './simulator.js';
-import { DEFAULT_CONFIG } from '../utils/constants.js';
+import { DEFAULT_CONFIG, createRuntimeConfig } from '../utils/constants.js';
 
 const DEFAULT_PROGRESS_INTERVAL_MS = 2000;
 const EPSILON = 1e-9;
@@ -381,7 +381,7 @@ export async function runShortcutParameterSweep(options = {}) {
   } = options;
 
   const normalizedRanges = { ...DEFAULT_SHORTCUT_PARAMETER_RANGES, ...parameterRanges };
-  const baseConfigSafe = { ...DEFAULT_CONFIG, ...baseConfig };
+  const baseConfigSafe = createRuntimeConfig(baseConfig);
   const overrides = generateParameterGrid(baseConfigSafe, normalizedRanges);
 
   const totalConfigurations = overrides.length;
@@ -401,7 +401,7 @@ export async function runShortcutParameterSweep(options = {}) {
 
   for (let index = 0; index < overrides.length; index += 1) {
     const override = overrides[index];
-    const config = { ...baseConfigSafe, ...override };
+    const config = createRuntimeConfig({ ...baseConfigSafe, ...override });
     const configStart = Date.now();
 
     const { summary } = await simulateGames({

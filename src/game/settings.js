@@ -3,36 +3,86 @@
  * Game settings management and persistence
  */
 
-import { DEFAULT_CONFIG, STORAGE_KEYS } from '../utils/constants.js';
+import { DEFAULT_CONFIG, STORAGE_KEYS, createRuntimeConfig, getAlgorithmConfig } from '../utils/constants.js';
 import { validateGameConfig } from '../utils/guards.js';
 
 function sanitizeSettings(settings) {
-  const merged = { ...DEFAULT_CONFIG, ...settings };
-  const normalizedRows = Math.trunc(Number(merged.rows));
-  const normalizedCols = Math.trunc(Number(merged.cols));
-  const normalizedSeed = Math.trunc(Number(merged.seed));
-  const normalizedSafetyBuffer =
-    merged.safetyBuffer !== undefined ? Math.trunc(Number(merged.safetyBuffer)) : DEFAULT_CONFIG.safetyBuffer;
+  const provided = settings && typeof settings === 'object' ? settings : {};
+  const requestedAlgorithm =
+    typeof provided.pathfindingAlgorithm === 'string'
+      ? provided.pathfindingAlgorithm
+      : DEFAULT_CONFIG.pathfindingAlgorithm;
+
+  const baseRuntime = createRuntimeConfig({ pathfindingAlgorithm: requestedAlgorithm });
+  const algorithm = baseRuntime.pathfindingAlgorithm;
+  const algorithmDefaults = getAlgorithmConfig(baseRuntime, algorithm);
 
   const sanitized = {
-    ...merged,
-    rows: Number.isSafeInteger(normalizedRows) ? normalizedRows : DEFAULT_CONFIG.rows,
-    cols: Number.isSafeInteger(normalizedCols) ? normalizedCols : DEFAULT_CONFIG.cols,
-    seed: Number.isSafeInteger(normalizedSeed) ? normalizedSeed : DEFAULT_CONFIG.seed,
-    safetyBuffer: Number.isSafeInteger(normalizedSafetyBuffer)
-      ? Math.max(1, normalizedSafetyBuffer)
-      : DEFAULT_CONFIG.safetyBuffer,
+    ...baseRuntime,
+    ...provided,
   };
 
-  if (typeof merged.shortcutsEnabled !== 'boolean') {
-    sanitized.shortcutsEnabled = DEFAULT_CONFIG.shortcutsEnabled;
+  const normalizedRows = Math.trunc(Number(sanitized.rows));
+  const normalizedCols = Math.trunc(Number(sanitized.cols));
+  const normalizedSeed = Math.trunc(Number(sanitized.seed));
+
+  sanitized.rows = Number.isSafeInteger(normalizedRows) ? normalizedRows : baseRuntime.rows;
+  sanitized.cols = Number.isSafeInteger(normalizedCols) ? normalizedCols : baseRuntime.cols;
+  sanitized.seed = Number.isSafeInteger(normalizedSeed) ? normalizedSeed : baseRuntime.seed;
+
+  const enforceIntegerSetting = (key, minimum) => {
+    if (sanitized[key] === undefined && algorithmDefaults[key] === undefined) {
+      delete sanitized[key];
+      return;
+    }
+
+    const normalized = Math.trunc(Number(sanitized[key]));
+    if (Number.isSafeInteger(normalized)) {
+      sanitized[key] = minimum !== undefined ? Math.max(minimum, normalized) : normalized;
+      return;
+    }
+
+    if (Number.isSafeInteger(algorithmDefaults[key])) {
+      const fallback = minimum !== undefined
+        ? Math.max(minimum, Math.trunc(Number(algorithmDefaults[key])))
+        : Math.trunc(Number(algorithmDefaults[key]));
+      sanitized[key] = fallback;
+      return;
+    }
+
+    delete sanitized[key];
+  };
+
+  enforceIntegerSetting('safetyBuffer', 1);
+  enforceIntegerSetting('lateGameLock', 0);
+  enforceIntegerSetting('minShortcutWindow', 1);
+
+  const enforceBooleanSetting = (key) => {
+    if (sanitized[key] === undefined && algorithmDefaults[key] === undefined) {
+      delete sanitized[key];
+      return;
+    }
+
+    if (typeof sanitized[key] === 'boolean') {
+      return;
+    }
+
+    if (typeof algorithmDefaults[key] === 'boolean') {
+      sanitized[key] = algorithmDefaults[key];
+      return;
+    }
+
+    delete sanitized[key];
+  };
+
+  enforceBooleanSetting('shortcutsEnabled');
+  enforceBooleanSetting('allowDiagonals');
+
+  if (typeof sanitized.pathfindingAlgorithm !== 'string') {
+    sanitized.pathfindingAlgorithm = baseRuntime.pathfindingAlgorithm;
   }
 
-  if (typeof merged.pathfindingAlgorithm !== 'string') {
-    sanitized.pathfindingAlgorithm = DEFAULT_CONFIG.pathfindingAlgorithm;
-  }
-
-  return sanitized;
+  return createRuntimeConfig(sanitized);
 }
 
 /**
@@ -56,7 +106,7 @@ export function loadSettings() {
     console.warn('Failed to load settings:', error);
   }
 
-  return { ...DEFAULT_CONFIG };
+  return createRuntimeConfig();
 }
 
 /**

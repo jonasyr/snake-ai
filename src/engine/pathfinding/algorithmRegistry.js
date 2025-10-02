@@ -18,6 +18,21 @@ export const ALGORITHMS = {
   REINFORCEMENT_LEARNING: 'reinforcement-learning',
 };
 
+const ALGORITHM_DEFAULT_CONFIGS = Object.freeze({
+  [ALGORITHMS.HAMILTONIAN]: Object.freeze({}),
+  [ALGORITHMS.HAMILTONIAN_SHORTCUTS]: Object.freeze({
+    shortcutsEnabled: true,
+    safetyBuffer: 2,
+    lateGameLock: 0,
+    minShortcutWindow: 5,
+  }),
+  [ALGORITHMS.ASTAR]: Object.freeze({
+    allowDiagonals: false,
+  }),
+  [ALGORITHMS.BFS]: Object.freeze({}),
+  [ALGORITHMS.GREEDY]: Object.freeze({}),
+});
+
 export const ALGORITHM_INFO = {
   [ALGORITHMS.HAMILTONIAN]: {
     name: 'Hamiltonian Cycle',
@@ -87,22 +102,9 @@ export function createAlgorithmManager(options) {
  * @returns {Object} Default configuration overrides.
  */
 export function getAlgorithmDefaultConfig(algorithm) {
-  switch (algorithm) {
-    case ALGORITHMS.HAMILTONIAN:
-      return { shortcutsEnabled: false };
-
-    case ALGORITHMS.HAMILTONIAN_SHORTCUTS:
-      return {
-        shortcutsEnabled: true,
-        safetyBuffer: 2,
-        lateGameLock: 0,
-        minShortcutWindow: 5,
-      };
-
-    case ALGORITHMS.ASTAR:
-      return { allowDiagonals: false };
-
-    default:
-      return {};
+  const defaults = ALGORITHM_DEFAULT_CONFIGS[algorithm];
+  if (!defaults) {
+    return {};
   }
+  return { ...defaults };
 }

@@ -4,7 +4,7 @@ import { GameLoop } from '../../game/gameLoop.js';
 import { loadSettings, saveSettings, updateHighScore, exportSettings, importSettings, clearAllData } from '../../game/settings.js';
 import { seed } from '../../engine/rng.js';
 import { GAME_STATUS } from '../../engine/types.js';
-import { DEFAULT_CONFIG } from '../../utils/constants.js';
+import { DEFAULT_CONFIG, createRuntimeConfig } from '../../utils/constants.js';
 import { validateGameConfig } from '../../utils/guards.js';
 import { cyclicDistance } from '../../utils/math.js';
 
@@ -19,7 +19,7 @@ function safeLoadSettings() {
   try {
     return loadSettings();
   } catch {
-    return { ...DEFAULT_CONFIG };
+    return createRuntimeConfig();
   }
 }
 
@@ -29,7 +29,7 @@ function safeLoadSettings() {
  * @returns {Object} Initialized game state
  */
 function createGameStateFromSettings(settings) {
-  const mergedSettings = { ...DEFAULT_CONFIG, ...settings };
+  const mergedSettings = createRuntimeConfig(settings);
   const validation = validateGameConfig(mergedSettings);
 
   if (!validation.valid) {
