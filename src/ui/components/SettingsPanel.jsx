@@ -11,6 +11,7 @@ import {
   ALGORITHM_INFO,
   getAlgorithmDefaultConfig,
 } from '../../engine/pathfinding/algorithmRegistry.js';
+import { resetPathfindingManager } from '../../engine/pathfinding/index.js';
 
 /**
  * Display a user-facing notification via alert or console fallback.
@@ -165,12 +166,15 @@ const SettingsPanel = ({
   const algorithmInfo = ALGORITHM_INFO[currentAlgorithm];
 
   /**
-   * Update algorithm selection, applying default configuration overrides.
+   * Update algorithm selection, reinitializing the pathfinding manager and applying defaults.
    *
    * @param {React.ChangeEvent<HTMLSelectElement>} event - Change event.
+   * @returns {Promise<void>} Resolves when the manager has been reset.
    */
-  const handleAlgorithmChange = event => {
+  const handleAlgorithmChange = async event => {
     const algorithm = event.target.value;
+
+    await resetPathfindingManager();
 
     onUpdateSettings({
       ...settings,
