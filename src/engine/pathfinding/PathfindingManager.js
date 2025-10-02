@@ -104,13 +104,25 @@ export class PathfindingManager {
     }
 
     const standardState = new StandardGameState(gameState);
-    const execute = () => this.currentStrategy.planNextMove(standardState, options);
+    const fallbackExecute = () => this.currentStrategy.planNextMove(standardState, options);
 
     const strategy = this.currentStrategy;
 
-    const planPromise = (strategy.isExpensive && this.workerPool.hasCapacity() && options.useWorker !== false)
-      ? this.workerPool.execute(execute)
-      : execute();
+    const shouldUseWorker = strategy.isExpensive && this.workerPool.hasCapacity() && options.useWorker !== false;
+    const planPromise = shouldUseWorker
+      ? this.workerPool.execute({
+        workerType: 'pathfinding.plan',
+        payload: {
+          strategy: {
+            key: this.currentStrategyName,
+            config: { ...(strategy?.config ?? {}) },
+          },
+          gameState,
+          options,
+        },
+        fallback: fallbackExecute,
+      })
+      : fallbackExecute();
 
     const result = await planPromise;
 
