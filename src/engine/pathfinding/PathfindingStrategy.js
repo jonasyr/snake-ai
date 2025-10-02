@@ -50,8 +50,8 @@ export class PathfindingStrategy {
    * @param {Object} initialState - Raw engine game state.
    * @returns {Promise<void>} Resolves when initialization completes.
    */
+  // eslint-disable-next-line no-unused-vars
   async initialize(initialState) {
-    // eslint-disable-line no-unused-vars
     this.initialized = true;
   }
 
