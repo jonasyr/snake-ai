@@ -3,7 +3,7 @@
  * Main game engine with pure state transitions - FIXED VERSION
  */
 
-import { createSnake, moveSnake, getHead, getTail, getLength, normalizeSnake } from './snake.js';
+import { createSnake, moveSnake, getHead, getLength, normalizeSnake } from './snake.js';
 import { spawnFruit, isFruitAt } from './fruit.js';
 import { generateHamiltonianCycle } from './hamiltonian.js';
 import { checkCollision } from './collision.js';
@@ -389,47 +389,114 @@ export function resetGame(config) {
 }
 
 /**
- * Get game statistics
- * @param {Object} gameState - Current game state
- * @returns {Object} Game statistics
+ * Create an empty statistics object with default values.
+ *
+ * @param {string} status - Current game status.
+ * @returns {Object} Empty statistics object.
  */
-export function getGameStats(gameState) {
-  const { snake, moves, score, cycle, fruit } = gameState;
+function createEmptyStats(status = 'unknown') {
+  return {
+    moves: 0,
+    length: 0,
+    score: 0,
+    free: 0,
+    distHeadApple: 0,
+    distHeadTail: 0,
+    shortcut: false,
+    efficiency: 0,
+    status,
+  };
+}
 
-  if (!snake || !cycle || !gameState.cycleIndex) {
-    return {
-      moves: 0,
-      length: 0,
-      score: 0,
-      free: 0,
-      distHeadApple: 0,
-      distHeadTail: 0,
-      shortcut: false,
-      efficiency: 0,
-      status: gameState.status || 'unknown',
-    };
+/**
+ * Calculate the Manhattan distance between two linearized grid cells.
+ *
+ * @param {number} from - Starting cell index.
+ * @param {number} to - Target cell index.
+ * @param {number} cols - Number of columns in the grid.
+ * @returns {number} Manhattan distance or 0 when unavailable.
+ */
+function manhattanDistance(from, to, cols) {
+  if (!Number.isInteger(from) || !Number.isInteger(to) || !Number.isInteger(cols) || cols <= 0) {
+    return 0;
   }
 
-  const head = getHead(snake);
-  const tail = getTail(snake);
-  const headPos = gameState.cycleIndex.get(head);
-  const tailPos = gameState.cycleIndex.get(tail);
-  const fruitPos = gameState.cycleIndex.get(fruit);
-  const snakeLength = getLength(snake);
+  const fromRow = Math.floor(from / cols);
+  const fromCol = from % cols;
+  const toRow = Math.floor(to / cols);
+  const toCol = to % cols;
+
+  return Math.abs(fromRow - toRow) + Math.abs(fromCol - toCol);
+}
+
+/**
+ * Get game statistics including distance metrics for the active strategy.
+ *
+ * @param {Object} gameState - Current game state.
+ * @returns {Object} Game statistics with distance measures.
+ */
+export function getGameStats(gameState) {
+  if (!gameState || typeof gameState !== 'object') {
+    return createEmptyStats();
+  }
+
+  const {
+    snake,
+    moves = 0,
+    score = 0,
+    cycle,
+    cycleIndex,
+    fruit,
+    config,
+    lastMoveWasShortcut,
+    status,
+  } = gameState;
+
+  if (!snake || !Array.isArray(snake.body) || snake.body.length === 0) {
+    return createEmptyStats(status);
+  }
+
+  const body = snake.body;
+  const head = body[0];
+  const tail = body[body.length - 1];
+  const totalCells = Array.isArray(cycle) && cycle.length > 0
+    ? cycle.length
+    : (Number.isInteger(config?.rows) && Number.isInteger(config?.cols)
+      ? config.rows * config.cols
+      : body.length);
+
+  const hasCycleData = Array.isArray(cycle) && cycle.length > 0 && cycleIndex instanceof Map;
+
+  let distHeadApple = 0;
+  let distHeadTail = 0;
+
+  if (hasCycleData) {
+    const headPos = cycleIndex.get(head);
+    const tailPos = cycleIndex.get(tail);
+    const fruitPos = cycleIndex.get(fruit);
+
+    if (headPos !== undefined && fruitPos !== undefined) {
+      distHeadApple = (fruitPos - headPos + cycle.length) % cycle.length;
+    }
+
+    if (headPos !== undefined && tailPos !== undefined) {
+      distHeadTail = (tailPos - headPos + cycle.length) % cycle.length;
+    }
+  } else {
+    const cols = Number.isInteger(config?.cols) ? config.cols : 0;
+    distHeadApple = manhattanDistance(head, fruit, cols);
+    distHeadTail = manhattanDistance(head, tail, cols);
+  }
 
   return {
-    moves: moves || 0,
-    length: snakeLength,
-    score: score || 0,
-    free: cycle.length - snakeLength,
-    distHeadApple: (headPos !== undefined && fruitPos !== undefined)
-      ? (fruitPos - headPos + cycle.length) % cycle.length
-      : 0,
-    distHeadTail: (headPos !== undefined && tailPos !== undefined)
-      ? (tailPos - headPos + cycle.length) % cycle.length
-      : 0,
-    shortcut: gameState.lastMoveWasShortcut || false,
+    moves,
+    length: body.length,
+    score,
+    free: Math.max(totalCells - body.length, 0),
+    distHeadApple,
+    distHeadTail,
+    shortcut: Boolean(lastMoveWasShortcut),
     efficiency: moves > 0 ? Math.round((score / moves) * 100) : 0,
-    status: gameState.status,
+    status,
   };
 }
