@@ -17,6 +17,7 @@ export class HamiltonianStrategy extends PathfindingStrategy {
     super(config);
     this.name = 'hamiltonian';
     this.isExpensive = false;
+    this.requiresCycle = true;
 
     /** @type {number} */
     this.safetyBuffer = config.safetyBuffer ?? 2;
