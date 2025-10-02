@@ -49,7 +49,8 @@ export class PathfindingStrategy {
    * @param {Object} initialState - Raw engine game state.
    * @returns {Promise<void>} Resolves when initialization completes.
    */
-  async initialize(initialState) { // eslint-disable-line no-unused-vars
+  async initialize(initialState) {
+    // eslint-disable-line no-unused-vars
     this.initialized = true;
   }
 
@@ -64,10 +65,13 @@ export class PathfindingStrategy {
    *   Normalized state adapter wrapping the engine state.
    * @param {Object} [options={}] - Optional strategy specific overrides.
    * @returns {Promise<PlanningResult>} Planning result with the next move and metadata.
-  */
-  async planNextMove(state, options = {}) { // eslint-disable-line no-unused-vars
+   */
+  async planNextMove(state, options = {}) {
+    // eslint-disable-line no-unused-vars
     const strategyName = this.constructor?.name ?? 'PathfindingStrategy';
-    throw new Error(`${strategyName}.planNextMove must be implemented by subclasses`);
+    throw new Error(
+      `${strategyName}.planNextMove must be implemented by subclasses`
+    );
   }
 
   /**
@@ -109,7 +113,8 @@ export class PathfindingStrategy {
    * @param {PlanningResult} planResult - Result returned from {@link planNextMove}.
    * @returns {number[]} Planned path for visualization.
    */
-  calculatePlannedPath(gameState, planResult) { // eslint-disable-line no-unused-vars
+  calculatePlannedPath(gameState, planResult) {
+    // eslint-disable-line no-unused-vars
     return [];
   }
 
@@ -206,7 +211,12 @@ export class GraphPathfindingStrategy extends PathfindingStrategy {
     const row = Math.floor(cellIndex / cols);
     const col = cellIndex % cols;
     const neighbors = [];
-    const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+    const directions = [
+      [-1, 0],
+      [1, 0],
+      [0, -1],
+      [0, 1],
+    ];
 
     for (const [dr, dc] of directions) {
       const newRow = row + dr;
@@ -276,7 +286,7 @@ export class LearningStrategy extends PathfindingStrategy {
    *
    * @returns {Promise<void>} Resolves when the model has been loaded.
    */
-  async loadModel() { // eslint-disable-line class-methods-use-this
+  async loadModel() {
     // To be implemented by subclasses when necessary.
   }
 
@@ -288,7 +298,7 @@ export class LearningStrategy extends PathfindingStrategy {
    *
    * @returns {Promise<void>} Resolves when persistence is complete.
    */
-  async saveModel() { // eslint-disable-line class-methods-use-this
+  async saveModel() {
     // To be implemented by subclasses when necessary.
   }
 

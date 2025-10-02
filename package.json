@@ -58,15 +58,10 @@
   "lint-staged": {
     "*.{js,jsx}": [
       "eslint --fix --max-warnings 0",
-      "prettier --write",
-      "git add"
+      "prettier --write"
     ],
     "*.{json,css,md}": [
-      "prettier --write",
-      "git add"
-    ],
-    "*.{js,jsx,json,css,md}": [
-      "git add"
+      "prettier --write"
     ],
     "src/**/*.{js,jsx}": [
       "eslint --fix --max-warnings 0"
