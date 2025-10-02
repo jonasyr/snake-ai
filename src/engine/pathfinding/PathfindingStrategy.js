@@ -1,5 +1,14 @@
 // FILE: src/engine/pathfinding/PathfindingStrategy.js
 /**
+ * @typedef {Object} PlanningResult
+ * @property {number} nextMove - Flattened index of the cell to move into next.
+ * @property {boolean} isShortcut - Indicates whether the move deviates from the default cycle.
+ * @property {string} reason - Human readable explanation for the chosen move.
+ * @property {number[]} plannedPath - Sequence of future cells for visualization (may be empty).
+ * @property {Object|null} metadata - Algorithm specific data useful for debugging or analytics.
+ */
+
+/**
  * Base class defining the interface for all pathfinding strategies.
  *
  * Strategies encapsulate the logic required to determine the snake's next
@@ -54,11 +63,39 @@ export class PathfindingStrategy {
    * @param {import('./GameStateAdapter.js').StandardGameState} state -
    *   Normalized state adapter wrapping the engine state.
    * @param {Object} [options={}] - Optional strategy specific overrides.
-   * @returns {Promise<Object>} Planning result with `nextMove` and metadata.
-   */
+   * @returns {Promise<PlanningResult>} Planning result with the next move and metadata.
+  */
   async planNextMove(state, options = {}) { // eslint-disable-line no-unused-vars
     const strategyName = this.constructor?.name ?? 'PathfindingStrategy';
     throw new Error(`${strategyName}.planNextMove must be implemented by subclasses`);
+  }
+
+  /**
+   * Helper utility to create a normalized planning result payload.
+   *
+   * @param {number} nextMove - Flattened index of the chosen move.
+   * @param {Object} [options={}] - Additional planning metadata.
+   * @param {boolean} [options.isShortcut=false] - Whether the move is a shortcut.
+   * @param {string} [options.reason='Move planned'] - Explanation describing the move.
+   * @param {number[]} [options.plannedPath=[]] - Sequence of future cells.
+   * @param {Object|null} [options.metadata=null] - Strategy specific debugging metadata.
+   * @returns {PlanningResult} Standardized planning result payload.
+   */
+  createPlanningResult(nextMove, options = {}) {
+    const {
+      isShortcut = false,
+      reason = 'Move planned',
+      plannedPath = [],
+      metadata = null,
+    } = options ?? {};
+
+    return {
+      nextMove,
+      isShortcut,
+      reason,
+      plannedPath,
+      metadata,
+    };
   }
 
   /**
@@ -69,7 +106,7 @@ export class PathfindingStrategy {
    * visualization is available.
    *
    * @param {Object} gameState - Raw engine game state.
-   * @param {Object} planResult - Result returned from {@link planNextMove}.
+   * @param {PlanningResult} planResult - Result returned from {@link planNextMove}.
    * @returns {number[]} Planned path for visualization.
    */
   calculatePlannedPath(gameState, planResult) { // eslint-disable-line no-unused-vars

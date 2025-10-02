@@ -246,7 +246,7 @@ export class HamiltonianStrategy extends PathfindingStrategy {
    * Follow the Hamiltonian cycle when shortcuts are not available.
    *
    * @param {Object} gameState - Engine state.
-   * @returns {Object} Planning result describing the next move.
+   * @returns {import('../PathfindingStrategy.js').PlanningResult} Planning result describing the next move.
    */
   followCycle(gameState) {
     const cycle = gameState?.cycle;
@@ -256,33 +256,41 @@ export class HamiltonianStrategy extends PathfindingStrategy {
       const totalCells = this.cachedCycleLength
         ?? (gameState?.config?.rows ?? 0) * (gameState?.config?.cols ?? 0);
       const fallbackMove = isValidCellIndex(gameState?.fruit, totalCells) ? gameState.fruit : 0;
-      return {
-        nextMove: fallbackMove,
-        isShortcut: false,
+      return this.createPlanningResult(fallbackMove, {
         reason: 'Fallback move - invalid cycle data',
-        shortcutInfo: null,
-      };
+        plannedPath: this.calculatePlannedPath(gameState, { nextMove: fallbackMove }),
+        metadata: {
+          shortcutInfo: null,
+          cycleAvailable: false,
+        },
+      });
     }
 
     const headCell = getHead(gameState.snake);
     const headPos = cycleIndex.get(headCell);
 
     if (headPos === undefined) {
-      return {
-        nextMove: cycle[0] ?? 0,
-        isShortcut: false,
+      const nextMove = cycle[0] ?? 0;
+      return this.createPlanningResult(nextMove, {
         reason: 'Fallback move - head not on cycle',
-        shortcutInfo: null,
-      };
+        plannedPath: this.calculatePlannedPath(gameState, { nextMove }),
+        metadata: {
+          shortcutInfo: null,
+          cycleAvailable: true,
+        },
+      });
     }
 
     const nextPos = (headPos + 1) % cycle.length;
-    return {
-      nextMove: cycle[nextPos],
-      isShortcut: false,
+    const nextMove = cycle[nextPos];
+    return this.createPlanningResult(nextMove, {
       reason: 'Following Hamiltonian cycle',
-      shortcutInfo: null,
-    };
+      plannedPath: this.calculatePlannedPath(gameState, { nextMove }),
+      metadata: {
+        shortcutInfo: null,
+        cycleAvailable: true,
+      },
+    });
   }
 
   /**
@@ -333,12 +341,13 @@ export class HamiltonianStrategy extends PathfindingStrategy {
     const gameState = standardState?.original;
 
     if (!gameState?.snake || gameState.snake.body?.length === 0) {
-      return {
-        nextMove: 0,
-        isShortcut: false,
+      return this.createPlanningResult(0, {
         reason: 'Invalid state',
-        shortcutInfo: null,
-      };
+        metadata: {
+          shortcutInfo: null,
+          cycleAvailable: Boolean(gameState?.cycle?.length),
+        },
+      });
     }
 
     const runtimeConfig = this.resolveRuntimeConfig(options);
@@ -349,12 +358,15 @@ export class HamiltonianStrategy extends PathfindingStrategy {
       if (shortcut) {
         const validation = this.validateShortcut(headCell, shortcut.cell, gameState, runtimeConfig);
         if (validation.valid) {
-          return {
-            nextMove: shortcut.cell,
+          return this.createPlanningResult(shortcut.cell, {
             isShortcut: true,
             reason: 'Taking safe shortcut',
-            shortcutInfo: shortcut,
-          };
+            plannedPath: this.calculatePlannedPath(gameState, { nextMove: shortcut.cell }),
+            metadata: {
+              shortcutInfo: shortcut,
+              safeWindow: shortcut.safeWindow,
+            },
+          });
         }
       }
     }

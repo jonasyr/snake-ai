@@ -3,14 +3,6 @@ import { GraphPathfindingStrategy } from '../PathfindingStrategy.js';
 import { getHead } from '../../snake.js';
 
 /**
- * @typedef {Object} PlanningResult
- * @property {number} nextMove - Next cell index the snake should move to.
- * @property {boolean} isShortcut - Whether the move is considered a shortcut.
- * @property {string} reason - Human readable explanation of the decision.
- * @property {Object|null} pathInfo - Metadata describing the planned path.
- */
-
-/**
  * Pathfinding strategy that uses the A* search algorithm to reach the fruit.
  */
 export class AStarStrategy extends GraphPathfindingStrategy {
@@ -30,7 +22,7 @@ export class AStarStrategy extends GraphPathfindingStrategy {
    *
    * @param {import('../GameStateAdapter.js').StandardGameState} standardState - Normalized state wrapper.
    * @param {Object} [options={}] - Optional strategy hints (currently unused).
-   * @returns {Promise<PlanningResult>} Planned move and metadata.
+   * @returns {Promise<import('../PathfindingStrategy.js').PlanningResult>} Planned move and metadata.
    */
   async planNextMove(standardState, options = {}) { // eslint-disable-line no-unused-vars
     const gameState = standardState?.original ?? null;
@@ -38,37 +30,39 @@ export class AStarStrategy extends GraphPathfindingStrategy {
     const fruit = Number.isInteger(gameState?.fruit) ? gameState.fruit : -1;
 
     if (!snake?.body?.length || fruit < 0) {
-      return {
-        nextMove: 0,
-        isShortcut: false,
+      return this.createPlanningResult(0, {
         reason: 'Invalid state',
-        pathInfo: null,
-      };
+        metadata: {
+          allowDiagonals: this.allowDiagonals,
+          expandedNodes: 0,
+          cost: 0,
+        },
+      });
     }
 
     const start = getHead(snake);
     if (!Number.isInteger(start) || start < 0) {
-      return {
-        nextMove: 0,
-        isShortcut: false,
+      return this.createPlanningResult(0, {
         reason: 'Invalid snake head position',
-        pathInfo: null,
-      };
+        metadata: {
+          allowDiagonals: this.allowDiagonals,
+          expandedNodes: 0,
+          cost: 0,
+        },
+      });
     }
 
     if (start === fruit) {
-      return {
-        nextMove: start,
-        isShortcut: false,
+      return this.createPlanningResult(start, {
         reason: 'Already at fruit position',
-        pathInfo: {
-          path: [],
+        plannedPath: [],
+        metadata: {
           pathLength: 0,
           expandedNodes: 0,
           cost: 0,
           allowDiagonals: this.allowDiagonals,
         },
-      };
+      });
     }
 
     const searchResult = this.astar(start, fruit, standardState);
@@ -86,46 +80,42 @@ export class AStarStrategy extends GraphPathfindingStrategy {
           return candidateScore < bestScore ? candidate : best;
         }, null);
 
-        return {
-          nextMove: survivalMove ?? start,
-          isShortcut: false,
+        const plannedPath = survivalMove != null ? [survivalMove] : [];
+        return this.createPlanningResult(survivalMove ?? start, {
           reason: 'No path to fruit - survival move',
-          pathInfo: {
-            path: survivalMove != null ? [survivalMove] : [],
-            pathLength: survivalMove != null ? 1 : 0,
+          plannedPath,
+          metadata: {
+            pathLength: plannedPath.length,
             expandedNodes: searchResult?.expandedNodes ?? 0,
-            cost: survivalMove != null ? 1 : 0,
+            cost: plannedPath.length,
             allowDiagonals: this.allowDiagonals,
           },
-        };
+        });
       }
 
-      return {
-        nextMove: start,
-        isShortcut: false,
+      return this.createPlanningResult(start, {
         reason: 'No valid moves',
-        pathInfo: {
-          path: [],
+        plannedPath: [],
+        metadata: {
           pathLength: 0,
           expandedNodes: searchResult?.expandedNodes ?? 0,
           cost: 0,
           allowDiagonals: this.allowDiagonals,
         },
-      };
+      });
     }
 
-    return {
-      nextMove: searchResult.path[1],
-      isShortcut: false,
+    const plannedPath = searchResult.path.slice(1);
+    return this.createPlanningResult(searchResult.path[1], {
       reason: 'Following A* path to fruit',
-      pathInfo: {
-        path: searchResult.path.slice(1),
-        pathLength: searchResult.path.length - 1,
+      plannedPath,
+      metadata: {
+        pathLength: plannedPath.length,
         expandedNodes: searchResult.expandedNodes,
         cost: searchResult.cost,
         allowDiagonals: this.allowDiagonals,
       },
-    };
+    });
   }
 
   /**

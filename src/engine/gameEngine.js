@@ -282,7 +282,11 @@ export async function gameTick(gameState) {
       nextMove: fallbackCell,
       isShortcut: false,
       reason: 'Fallback move - planner invalid output',
-      shortcutInfo: null,
+      plannedPath: [],
+      metadata: {
+        shortcutInfo: null,
+        cycleAvailable: Boolean(workingState?.cycle?.length),
+      },
     };
   }
 

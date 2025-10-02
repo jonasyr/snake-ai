@@ -55,12 +55,13 @@ export function validateShortcut(fromCell, toCell, gameState, config = {}) {
  */
 export function planPath(gameState, config = {}) {
   if (!gameState?.snake || gameState.snake.body?.length === 0) {
-    return {
-      nextMove: 0,
-      isShortcut: false,
+    return legacyStrategy.createPlanningResult(0, {
       reason: 'Invalid state',
-      shortcutInfo: null,
-    };
+      metadata: {
+        shortcutInfo: null,
+        cycleAvailable: Boolean(gameState?.cycle?.length),
+      },
+    });
   }
 
   const runtimeConfig = resolveLegacyConfig(config);
@@ -77,12 +78,15 @@ export function planPath(gameState, config = {}) {
       );
 
       if (validation.valid) {
-        return {
-          nextMove: shortcut.cell,
+        return legacyStrategy.createPlanningResult(shortcut.cell, {
           isShortcut: true,
           reason: 'Taking safe shortcut',
-          shortcutInfo: shortcut,
-        };
+          plannedPath: legacyStrategy.calculatePlannedPath(gameState, { nextMove: shortcut.cell }),
+          metadata: {
+            shortcutInfo: shortcut,
+            safeWindow: shortcut.safeWindow,
+          },
+        });
       }
     }
   }
