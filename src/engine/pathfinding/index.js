@@ -10,6 +10,7 @@ export { PathfindingManager } from './PathfindingManager.js';
 export { StandardGameState } from './GameStateAdapter.js';
 export { HamiltonianStrategy } from './strategies/HamiltonianStrategy.js';
 export { AStarStrategy } from './strategies/AStarStrategy.js';
+export { BFSStrategy } from './strategies/BFSStrategy.js';
 export { WorkerPool } from './WorkerPool.js';
 export { ALGORITHMS } from './algorithmRegistry.js';
 

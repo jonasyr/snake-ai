@@ -296,8 +296,8 @@ const SettingsPanel = ({
               <option value={ALGORITHMS.ASTAR} className="bg-gray-800 text-white">
                 {ALGORITHM_INFO[ALGORITHMS.ASTAR].name}
               </option>
-              <option value={ALGORITHMS.BFS} disabled className="bg-gray-800 text-gray-400">
-                BFS (Coming Soon)
+              <option value={ALGORITHMS.BFS} className="bg-gray-800 text-white">
+                {ALGORITHM_INFO[ALGORITHMS.BFS].name}
               </option>
               <option value={ALGORITHMS.GREEDY} disabled className="bg-gray-800 text-gray-400">
                 Greedy (Coming Soon)

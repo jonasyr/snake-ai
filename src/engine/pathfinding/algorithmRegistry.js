@@ -6,6 +6,7 @@
 import { PathfindingManager } from './PathfindingManager.js';
 import { HamiltonianStrategy } from './strategies/HamiltonianStrategy.js';
 import { AStarStrategy } from './strategies/AStarStrategy.js';
+import { BFSStrategy } from './strategies/BFSStrategy.js';
 
 export const ALGORITHMS = {
   HAMILTONIAN: 'hamiltonian',
@@ -73,7 +74,7 @@ export function createAlgorithmManager(options) {
   manager.registerStrategy(ALGORITHMS.HAMILTONIAN_SHORTCUTS, HamiltonianStrategy);
   manager.registerStrategy(ALGORITHMS.ASTAR, AStarStrategy);
   // manager.registerStrategy(ALGORITHMS.DIJKSTRA, DijkstraStrategy);
-  // manager.registerStrategy(ALGORITHMS.BFS, BFSStrategy);
+  manager.registerStrategy(ALGORITHMS.BFS, BFSStrategy);
   // manager.registerStrategy(ALGORITHMS.GREEDY, GreedyStrategy);
 
   return manager;

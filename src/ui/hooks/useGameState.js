@@ -213,7 +213,8 @@ export function useGameState() {
       const requiresReinit =
         merged.rows !== prevSettings.rows ||
         merged.cols !== prevSettings.cols ||
-        merged.seed !== prevSettings.seed;
+        merged.seed !== prevSettings.seed ||
+        merged.pathfindingAlgorithm !== prevSettings.pathfindingAlgorithm;
 
       if (requiresReinit) {
         const freshState = createGameStateFromSettings(merged);
