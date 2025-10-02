@@ -15,54 +15,7 @@ performance.
 
 ## Project Structure for AI Code Generation
 
-```
-/
-├── src/                     # Main source code - AI agents focus here
-│   ├── engine/              # Pure functional game engine (CRITICAL)
-│   │   ├── collision.js     # Collision detection systems
-│   │   ├── fruit.js         # Fruit spawning and management
-│   │   ├── gameEngine.js    # Core game state transitions
-│   │   ├── grid.js          # Grid coordinate utilities
-│   │   ├── hamiltonian.js   # Hamiltonian cycle generation
-│   │   ├── rng.js           # Seeded random number generator
-│   │   ├── shortcuts.js     # DEPRECATED - use pathfinding strategies instead
-│   │   ├── snake.js         # Snake state with circular buffer optimization
-│   │   ├── types.js         # JSDoc type definitions
-│   │   └── pathfinding/     # Multi-strategy pathfinding system (NEW)
-│   │       ├── index.js              # Public API and manager
-│   │       ├── PathfindingManager.js # Strategy coordinator
-│   │       ├── PathfindingStrategy.js # Base strategy classes
-│   │       ├── GameStateAdapter.js   # State normalization
-│   │       ├── WorkerPool.js         # Web Worker pool for expensive operations
-│   │       ├── algorithmRegistry.js  # Available algorithms registry
-│   │       ├── strategies/           # Strategy implementations
-│   │       │   ├── HamiltonianStrategy.js  # Hamiltonian with shortcuts
-│   │       │   ├── AStarStrategy.js        # A* pathfinding
-│   │       │   └── BFSStrategy.js          # Breadth-first search
-│   │       └── worker/               # Worker runtime
-│   │           └── PathfindingWorker.js
-│   ├── game/                # Game loop and settings
-│   │   ├── gameLoop.js      # Frame-locked game loop with state pooling
-│   │   └── settings.js      # Persistent settings (uses localStorage - OK here)
-│   ├── simulation/          # Headless batch simulation
-│   │   ├── index.js         # Simulation exports
-│   │   ├── simulator.js     # Batch game runner
-│   │   └── parameterSweep.js # Parameter exploration utilities (NEW)
-│   ├── ui/                  # React user interface
-│   │   ├── components/      # Reusable UI components
-│   │   └── hooks/           # Custom React hooks
-│   ├── utils/               # Shared utilities
-│   │   ├── collections.js   # Performance data structures (object pools, queues)
-│   │   ├── constants.js     # Global constants and config
-│   │   ├── guards.js        # Type validation utilities
-│   │   └── math.js          # Mathematical operations
-│   └── tests/               # Comprehensive test suite
-├── scripts/                 # CLI tools and automation
-│   ├── simulate.js         # Single game simulation
-│   ├── optimize.js         # Parameter optimization (NEW)
-│   └── analyze-results.js  # Results analysis (NEW)
-└── [config files]          # Build and development configuration
-```
+txt```
 
 ## Technology Stack & Dependencies
 
@@ -577,7 +530,7 @@ npm run simulate:sweep -- \
 
 Your development workflow now includes these **automated quality gates**:
 
-```
+```txt
 📝 Conventional Commit Format ✅ (commit-msg hook)
 🔍 Code Linting (ESLint)     ✅ (pre-commit hook)
 ✨ Code Formatting (Prettier) ✅ (pre-commit hook)
