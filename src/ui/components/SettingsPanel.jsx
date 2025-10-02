@@ -26,6 +26,115 @@ const notifyUser = message => {
 };
 
 /**
+ * Render algorithm-specific configuration controls.
+ *
+ * @param {Object} props - Component properties.
+ * @param {string} props.algorithm - Currently selected algorithm identifier.
+ * @param {Object} props.settings - Complete settings object for the game.
+ * @param {Function} props.onUpdateSettings - Handler to persist settings updates.
+ * @returns {JSX.Element|null} Algorithm settings section if applicable.
+ */
+const AlgorithmSettings = ({ algorithm, settings, onUpdateSettings }) => {
+  switch (algorithm) {
+    case ALGORITHMS.HAMILTONIAN_SHORTCUTS:
+      return (
+        <div className="border-t border-white/10 pt-4">
+          <h4 className="text-lg font-medium text-gray-200 mb-3">Shortcut Tuning</h4>
+
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="safety-buffer" className="block text-sm font-medium text-gray-300 mb-2">
+                Safety Buffer: {settings.safetyBuffer ?? 2}
+              </label>
+              <input
+                id="safety-buffer"
+                type="range"
+                min="1"
+                max="10"
+                value={settings.safetyBuffer ?? 2}
+                onChange={event =>
+                  onUpdateSettings({
+                    ...settings,
+                    safetyBuffer: Number.parseInt(event.target.value, 10),
+                  })
+                }
+                className="w-full accent-blue-500"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Minimum distance from tail when taking shortcuts
+              </p>
+            </div>
+
+            <div>
+              <label htmlFor="late-game-lock" className="block text-sm font-medium text-gray-300 mb-2">
+                Late Game Lock: {settings.lateGameLock ?? 0}
+              </label>
+              <input
+                id="late-game-lock"
+                type="range"
+                min="0"
+                max="10"
+                value={settings.lateGameLock ?? 0}
+                onChange={event =>
+                  onUpdateSettings({
+                    ...settings,
+                    lateGameLock: Number.parseInt(event.target.value, 10),
+                  })
+                }
+                className="w-full accent-blue-500"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Free cells required before disabling shortcuts
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+
+    case ALGORITHMS.ASTAR:
+      return (
+        <div className="border-t border-white/10 pt-4">
+          <h4 className="text-lg font-medium text-gray-200 mb-3">A* Settings</h4>
+          <div className="space-y-4">
+            <div>
+              <label className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={settings.allowDiagonals ?? false}
+                  onChange={event =>
+                    onUpdateSettings({
+                      ...settings,
+                      allowDiagonals: event.target.checked,
+                    })
+                  }
+                  className="w-4 h-4 text-blue-600 bg-white/10 border-white/20 rounded"
+                />
+                <span className="text-sm text-gray-300">Allow Diagonal Movement</span>
+              </label>
+              <p className="text-xs text-gray-400 mt-1 ml-7">
+                Enables 8-directional pathfinding (4 orthogonal + 4 diagonal)
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+
+    default:
+      return null;
+  }
+};
+
+AlgorithmSettings.propTypes = {
+  algorithm: PropTypes.string.isRequired,
+  settings: PropTypes.shape({
+    allowDiagonals: PropTypes.bool,
+    lateGameLock: PropTypes.number,
+    safetyBuffer: PropTypes.number,
+  }).isRequired,
+  onUpdateSettings: PropTypes.func.isRequired,
+};
+
+/**
  * Settings management panel for configuring game and AI behavior.
  *
  * @param {Object} props - Component properties.
@@ -231,59 +340,11 @@ const SettingsPanel = ({
         </div>
 
         {/* Algorithm-Specific Settings */}
-        {currentAlgorithm === ALGORITHMS.HAMILTONIAN_SHORTCUTS && (
-          <div className="border-t border-white/10 pt-4">
-            <h4 className="text-lg font-medium text-gray-200 mb-3">Shortcut Tuning</h4>
-
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="safety-buffer" className="block text-sm font-medium text-gray-300 mb-2">
-                  Safety Buffer: {settings.safetyBuffer ?? 2}
-                </label>
-                <input
-                  id="safety-buffer"
-                  type="range"
-                  min="1"
-                  max="10"
-                  value={settings.safetyBuffer ?? 2}
-                  onChange={event =>
-                    onUpdateSettings({
-                      ...settings,
-                      safetyBuffer: Number.parseInt(event.target.value, 10),
-                    })
-                  }
-                  className="w-full accent-blue-500"
-                />
-                <p className="text-xs text-gray-400 mt-1">
-                  Minimum distance from tail when taking shortcuts
-                </p>
-              </div>
-
-              <div>
-                <label htmlFor="late-game-lock" className="block text-sm font-medium text-gray-300 mb-2">
-                  Late Game Lock: {settings.lateGameLock ?? 0}
-                </label>
-                <input
-                  id="late-game-lock"
-                  type="range"
-                  min="0"
-                  max="10"
-                  value={settings.lateGameLock ?? 0}
-                  onChange={event =>
-                    onUpdateSettings({
-                      ...settings,
-                      lateGameLock: Number.parseInt(event.target.value, 10),
-                    })
-                  }
-                  className="w-full accent-blue-500"
-                />
-                <p className="text-xs text-gray-400 mt-1">
-                  Free cells required before disabling shortcuts
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
+        <AlgorithmSettings
+          algorithm={currentAlgorithm}
+          settings={settings}
+          onUpdateSettings={onUpdateSettings}
+        />
 
         {/* Grid Size */}
         <div className="border-t border-white/10 pt-4">
@@ -372,9 +433,10 @@ SettingsPanel.propTypes = {
     rows: PropTypes.number.isRequired,
     seed: PropTypes.number.isRequired,
     pathfindingAlgorithm: PropTypes.string,
-    safetyBuffer: PropTypes.number,
     lateGameLock: PropTypes.number,
+    safetyBuffer: PropTypes.number,
     shortcutsEnabled: PropTypes.bool,
+    allowDiagonals: PropTypes.bool,
   }).isRequired,
   onUpdateSettings: PropTypes.func.isRequired,
   onExportSettings: PropTypes.func.isRequired,
