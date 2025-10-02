@@ -1,0 +1,18 @@
+#!/usr/bin/env sh
+
+# Validate commit message format
+echo "📝 Validating commit message format..."
+
+# Read the commit message
+commit_regex='^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\(.+\))?: .{1,50}'
+
+if ! grep -qE "$commit_regex" "$1"; then
+    echo "❌ Invalid commit message format!"
+    echo "Format: <type>[optional scope]: <description>"
+    echo "Types: feat, fix, docs, style, refactor, perf, test, chore, ci, build, revert"
+    echo "Example: feat(pathfinding): add new A* strategy"
+    echo "Example: fix: resolve collision detection bug"
+    exit 1
+fi
+
+echo "✅ Commit message format is valid!"

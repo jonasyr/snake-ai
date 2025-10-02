@@ -1,0 +1,19 @@
+#!/usr/bin/env sh
+
+# Run lint-staged for formatting and linting
+echo "🔍 Running lint-staged..."
+npx lint-staged
+
+# Check if there are any linting errors that would prevent commit
+echo "✨ Running ESLint check..."
+npm run lint
+
+# Run tests to ensure nothing is broken
+echo "🧪 Running tests..."
+npm run test -- --run --reporter=basic
+
+# Verify the build still works
+echo "🏗️  Verifying build..."
+npm run build
+
+echo "✅ Pre-commit checks passed!"
