@@ -17,16 +17,16 @@ export class WorkerPool {
 
     this.supportsWorkers = typeof Worker === 'function';
     this.workers = [];
-    this.workerModuleUrl = null;
 
     if (this.supportsWorkers) {
       try {
-        this.workerModuleUrl = new URL('./worker/PathfindingWorker.js', import.meta.url);
         this.#initializeWorkers();
       } catch (error) {
-        console.warn('WorkerPool failed to initialize workers. Falling back to synchronous execution.', error);
+        console.warn(
+          'WorkerPool failed to initialize workers. Falling back to synchronous execution.',
+          error
+        );
         this.supportsWorkers = false;
-        this.workerModuleUrl = null;
       }
     }
   }
@@ -38,7 +38,8 @@ export class WorkerPool {
    */
   hasCapacity() {
     if (this.supportsWorkers && this.workers.length > 0) {
-      return this.pendingJobs.size < this.maxWorkers;
+      const liveWorkers = this.workers.filter(e => !e.dead).length;
+      return liveWorkers > 0 && this.pendingJobs.size < liveWorkers;
     }
 
     return true;
@@ -57,7 +58,9 @@ export class WorkerPool {
     if (!this.#canRunInWorker(task)) {
       const fallbackRunner = this.#getFallbackRunner(task);
       if (!fallbackRunner) {
-        return Promise.reject(new Error('Worker task is missing a fallback function'));
+        return Promise.reject(
+          new Error('Worker task is missing a fallback function')
+        );
       }
 
       return this.#runSynchronously(fallbackRunner);
@@ -110,16 +113,20 @@ export class WorkerPool {
   }
 
   #createWorkerEntry() {
-    if (!this.workerModuleUrl) {
-      return null;
-    }
-
     try {
-      const worker = new Worker(this.workerModuleUrl, { type: 'module' });
-      const entry = { worker, busy: false };
+      // URL and Worker must be inline so Vite bundles the worker with its dependencies in production builds.
+      const worker = new Worker(
+        new URL('./worker/PathfindingWorker.js', import.meta.url),
+        { type: 'module' }
+      );
+      const entry = { worker, busy: false, dead: false };
 
-      worker.addEventListener('message', event => this.#handleWorkerMessage(entry, event));
-      worker.addEventListener('error', event => this.#handleWorkerError(entry, event));
+      worker.addEventListener('message', event =>
+        this.#handleWorkerMessage(entry, event)
+      );
+      worker.addEventListener('error', event =>
+        this.#handleWorkerError(entry, event)
+      );
 
       return entry;
     } catch (error) {
@@ -146,9 +153,11 @@ export class WorkerPool {
         job.attemptedFallback = true;
         const fallbackRunner = this.#getFallbackRunner(job.task);
         if (fallbackRunner) {
-          this.#runSynchronously(fallbackRunner).then(job.resolve, job.reject).finally(() => {
-            this.#processQueue();
-          });
+          this.#runSynchronously(fallbackRunner)
+            .then(job.resolve, job.reject)
+            .finally(() => {
+              this.#processQueue();
+            });
           return;
         }
       }
@@ -165,8 +174,11 @@ export class WorkerPool {
 
   #handleWorkerError(workerEntry, event) {
     workerEntry.busy = false;
+    workerEntry.dead = true;
 
-    const error = event?.message ? new Error(event.message) : new Error('Worker encountered an unknown error');
+    const error = event?.message
+      ? new Error(event.message)
+      : new Error('Worker encountered an unknown error');
 
     for (const [id, job] of this.pendingJobs) {
       if (!job || job.workerEntry !== workerEntry) {
@@ -187,6 +199,25 @@ export class WorkerPool {
       job.reject(error);
     }
 
+    // If all workers are dead, disable worker support so queued jobs fall back to synchronous execution.
+    const allDead = this.workers.length > 0 && this.workers.every(e => e.dead);
+    if (allDead) {
+      this.supportsWorkers = false;
+      while (this.queue.length > 0) {
+        const job = this.queue.shift();
+        if (!job) {
+          continue;
+        }
+        const fallbackRunner = this.#getFallbackRunner(job.task);
+        if (fallbackRunner) {
+          this.#runSynchronously(fallbackRunner).then(job.resolve, job.reject);
+        } else {
+          job.reject(error);
+        }
+      }
+      return;
+    }
+
     this.#processQueue();
   }
 
@@ -200,7 +231,7 @@ export class WorkerPool {
         break;
       }
 
-      if (workerEntry.busy) {
+      if (workerEntry.busy || workerEntry.dead) {
         continue;
       }
 
@@ -231,7 +262,10 @@ export class WorkerPool {
       workerEntry.busy = true;
       job.workerEntry = workerEntry;
       this.pendingJobs.set(job.id, job);
-      workerEntry.worker.postMessage({ id: job.id, type: workerType, payload }, Array.isArray(transferList) ? transferList : undefined);
+      workerEntry.worker.postMessage(
+        { id: job.id, type: workerType, payload },
+        Array.isArray(transferList) ? transferList : undefined
+      );
     } catch (error) {
       this.pendingJobs.delete(job.id);
       workerEntry.busy = false;
@@ -240,9 +274,11 @@ export class WorkerPool {
         job.attemptedFallback = true;
         const fallbackRunner = this.#getFallbackRunner(job.task);
         if (fallbackRunner) {
-          this.#runSynchronously(fallbackRunner).then(job.resolve, job.reject).finally(() => {
-            this.#processQueue();
-          });
+          this.#runSynchronously(fallbackRunner)
+            .then(job.resolve, job.reject)
+            .finally(() => {
+              this.#processQueue();
+            });
           return;
         }
       }
