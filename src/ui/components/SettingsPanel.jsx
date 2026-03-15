@@ -9,6 +9,7 @@ import { Download, Upload, RotateCcw, Info } from 'lucide-react';
 import {
   ALGORITHMS,
   ALGORITHM_INFO,
+  ALGORITHM_REGISTRY,
   getAlgorithmDefaultConfig,
 } from '../../engine/pathfinding/algorithmRegistry.js';
 import { resetPathfindingManager } from '../../engine/pathfinding/index.js';
@@ -39,19 +40,24 @@ const AlgorithmSettings = ({ algorithm, settings, onUpdateSettings }) => {
   switch (algorithm) {
     case ALGORITHMS.HAMILTONIAN_SHORTCUTS:
       return (
-        <div className="border-t border-white/10 pt-4">
-          <h4 className="text-lg font-medium text-gray-200 mb-3">Shortcut Tuning</h4>
+        <div className='border-t border-white/10 pt-4'>
+          <h4 className='text-lg font-medium text-gray-200 mb-3'>
+            Shortcut Tuning
+          </h4>
 
-          <div className="space-y-4">
+          <div className='space-y-4'>
             <div>
-              <label htmlFor="safety-buffer" className="block text-sm font-medium text-gray-300 mb-2">
+              <label
+                htmlFor='safety-buffer'
+                className='block text-sm font-medium text-gray-300 mb-2'
+              >
                 Safety Buffer: {settings.safetyBuffer ?? 2}
               </label>
               <input
-                id="safety-buffer"
-                type="range"
-                min="1"
-                max="10"
+                id='safety-buffer'
+                type='range'
+                min='1'
+                max='10'
                 value={settings.safetyBuffer ?? 2}
                 onChange={event =>
                   onUpdateSettings({
@@ -59,22 +65,25 @@ const AlgorithmSettings = ({ algorithm, settings, onUpdateSettings }) => {
                     safetyBuffer: Number.parseInt(event.target.value, 10),
                   })
                 }
-                className="w-full accent-blue-500"
+                className='w-full accent-blue-500'
               />
-              <p className="text-xs text-gray-400 mt-1">
+              <p className='text-xs text-gray-400 mt-1'>
                 Minimum distance from tail when taking shortcuts
               </p>
             </div>
 
             <div>
-              <label htmlFor="late-game-lock" className="block text-sm font-medium text-gray-300 mb-2">
+              <label
+                htmlFor='late-game-lock'
+                className='block text-sm font-medium text-gray-300 mb-2'
+              >
                 Late Game Lock: {settings.lateGameLock ?? 0}
               </label>
               <input
-                id="late-game-lock"
-                type="range"
-                min="0"
-                max="10"
+                id='late-game-lock'
+                type='range'
+                min='0'
+                max='10'
                 value={settings.lateGameLock ?? 0}
                 onChange={event =>
                   onUpdateSettings({
@@ -82,9 +91,9 @@ const AlgorithmSettings = ({ algorithm, settings, onUpdateSettings }) => {
                     lateGameLock: Number.parseInt(event.target.value, 10),
                   })
                 }
-                className="w-full accent-blue-500"
+                className='w-full accent-blue-500'
               />
-              <p className="text-xs text-gray-400 mt-1">
+              <p className='text-xs text-gray-400 mt-1'>
                 Free cells required before disabling shortcuts
               </p>
             </div>
@@ -94,13 +103,15 @@ const AlgorithmSettings = ({ algorithm, settings, onUpdateSettings }) => {
 
     case ALGORITHMS.ASTAR:
       return (
-        <div className="border-t border-white/10 pt-4">
-          <h4 className="text-lg font-medium text-gray-200 mb-3">A* Settings</h4>
-          <div className="space-y-4">
+        <div className='border-t border-white/10 pt-4'>
+          <h4 className='text-lg font-medium text-gray-200 mb-3'>
+            A* Settings
+          </h4>
+          <div className='space-y-4'>
             <div>
-              <label className="flex items-center gap-3">
+              <label className='flex items-center gap-3'>
                 <input
-                  type="checkbox"
+                  type='checkbox'
                   checked={settings.allowDiagonals ?? false}
                   onChange={event =>
                     onUpdateSettings({
@@ -108,11 +119,13 @@ const AlgorithmSettings = ({ algorithm, settings, onUpdateSettings }) => {
                       allowDiagonals: event.target.checked,
                     })
                   }
-                  className="w-4 h-4 text-blue-600 bg-white/10 border-white/20 rounded"
+                  className='w-4 h-4 text-blue-600 bg-white/10 border-white/20 rounded'
                 />
-                <span className="text-sm text-gray-300">Allow Diagonal Movement</span>
+                <span className='text-sm text-gray-300'>
+                  Allow Diagonal Movement
+                </span>
               </label>
-              <p className="text-xs text-gray-400 mt-1 ml-7">
+              <p className='text-xs text-gray-400 mt-1 ml-7'>
                 Enables 8-directional pathfinding (4 orthogonal + 4 diagonal)
               </p>
             </div>
@@ -164,6 +177,7 @@ const SettingsPanel = ({
   const currentAlgorithm =
     settings.pathfindingAlgorithm || ALGORITHMS.HAMILTONIAN_SHORTCUTS;
   const algorithmInfo = ALGORITHM_INFO[currentAlgorithm];
+  const algorithmMeta = ALGORITHM_REGISTRY[currentAlgorithm];
 
   /**
    * Update algorithm selection, reinitializing the pathfinding manager and applying defaults.
@@ -194,7 +208,9 @@ const SettingsPanel = ({
     const cols = Number.parseInt(colsValue, 10);
 
     if (!Number.isInteger(rows) || !Number.isInteger(cols)) {
-      notifyUser('Invalid grid size selected. Please choose a supported option.');
+      notifyUser(
+        'Invalid grid size selected. Please choose a supported option.'
+      );
       return;
     }
 
@@ -204,7 +220,9 @@ const SettingsPanel = ({
     }
 
     if (rows % 2 !== 0 && cols % 2 !== 0) {
-      notifyUser('At least one grid dimension must be even to generate a Hamiltonian cycle.');
+      notifyUser(
+        'At least one grid dimension must be even to generate a Hamiltonian cycle.'
+      );
       return;
     }
 
@@ -266,18 +284,21 @@ const SettingsPanel = ({
   };
 
   return (
-    <div className="bg-black/20 backdrop-blur-xl border border-white/10 rounded-2xl p-6">
-      <h3 className="text-xl font-semibold mb-4">Game Settings</h3>
+    <div className='bg-black/20 backdrop-blur-xl border border-white/10 rounded-2xl p-6'>
+      <h3 className='text-xl font-semibold mb-4'>Game Settings</h3>
 
-      <div className="space-y-6">
+      <div className='space-y-6'>
         {/* Algorithm Selection */}
         <div>
-          <label htmlFor="algorithm" className="block text-sm font-medium text-gray-300 mb-2">
+          <label
+            htmlFor='algorithm'
+            className='block text-sm font-medium text-gray-300 mb-2'
+          >
             AI Algorithm
           </label>
           <select
-            id="algorithm"
-            className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none cursor-pointer hover:bg-white/15 transition-colors"
+            id='algorithm'
+            className='w-full px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none cursor-pointer hover:bg-white/15 transition-colors'
             value={currentAlgorithm}
             onChange={handleAlgorithmChange}
             style={{
@@ -285,30 +306,55 @@ const SettingsPanel = ({
               backgroundPosition: 'right 0.5rem center',
               backgroundRepeat: 'no-repeat',
               backgroundSize: '1.5em 1.5em',
-              paddingRight: '2.5rem'
+              paddingRight: '2.5rem',
             }}
           >
-            <optgroup label="Hamiltonian-Based" className="bg-gray-800 text-white">
-              <option value={ALGORITHMS.HAMILTONIAN} className="bg-gray-800 text-white">
+            <optgroup
+              label='Hamiltonian-Based'
+              className='bg-gray-800 text-white'
+            >
+              <option
+                value={ALGORITHMS.HAMILTONIAN}
+                className='bg-gray-800 text-white'
+              >
                 {ALGORITHM_INFO[ALGORITHMS.HAMILTONIAN].name}
               </option>
-              <option value={ALGORITHMS.HAMILTONIAN_SHORTCUTS} className="bg-gray-800 text-white">
+              <option
+                value={ALGORITHMS.HAMILTONIAN_SHORTCUTS}
+                className='bg-gray-800 text-white'
+              >
                 {ALGORITHM_INFO[ALGORITHMS.HAMILTONIAN_SHORTCUTS].name}
               </option>
             </optgroup>
-            <optgroup label="Graph Search" className="bg-gray-800 text-white">
-              <option value={ALGORITHMS.ASTAR} className="bg-gray-800 text-white">
+            <optgroup label='Graph Search' className='bg-gray-800 text-white'>
+              <option
+                value={ALGORITHMS.ASTAR}
+                className='bg-gray-800 text-white'
+              >
                 {ALGORITHM_INFO[ALGORITHMS.ASTAR].name}
               </option>
-              <option value={ALGORITHMS.BFS} className="bg-gray-800 text-white">
+              <option
+                value={ALGORITHMS.DIJKSTRA}
+                className='bg-gray-800 text-white'
+              >
+                {ALGORITHM_INFO[ALGORITHMS.DIJKSTRA].name}
+              </option>
+              <option value={ALGORITHMS.BFS} className='bg-gray-800 text-white'>
                 {ALGORITHM_INFO[ALGORITHMS.BFS].name}
               </option>
-              <option value={ALGORITHMS.GREEDY} disabled className="bg-gray-800 text-gray-400">
-                Greedy (Coming Soon)
+              <option
+                value={ALGORITHMS.GREEDY}
+                className='bg-gray-800 text-white'
+              >
+                {ALGORITHM_INFO[ALGORITHMS.GREEDY].name}
               </option>
             </optgroup>
-            <optgroup label="Learning-Based" className="bg-gray-800 text-white">
-              <option value={ALGORITHMS.REINFORCEMENT_LEARNING} disabled className="bg-gray-800 text-gray-400">
+            <optgroup label='Learning-Based' className='bg-gray-800 text-white'>
+              <option
+                value={ALGORITHMS.REINFORCEMENT_LEARNING}
+                disabled
+                className='bg-gray-800 text-gray-400'
+              >
                 Reinforcement Learning (Coming Soon)
               </option>
             </optgroup>
@@ -316,29 +362,60 @@ const SettingsPanel = ({
 
           {/* Algorithm Info Card */}
           {algorithmInfo && (
-            <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl">
-              <div className="flex items-start gap-2 mb-2">
-                <Info className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
-                <p className="text-sm text-gray-300">{algorithmInfo.description}</p>
+            <div className='mt-3 p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl'>
+              <div className='flex items-start gap-2 mb-2'>
+                <Info className='w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0' />
+                <p className='text-sm text-gray-300'>
+                  {algorithmInfo.description}
+                </p>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className='grid grid-cols-2 gap-2 text-xs'>
                 <div>
-                  <span className="text-green-400">✓ Pros:</span>
-                  <ul className="text-gray-400 ml-4 mt-1">
+                  <span className='text-green-400'>✓ Pros:</span>
+                  <ul className='text-gray-400 ml-4 mt-1'>
                     {algorithmInfo.pros.map((pro, index) => (
                       <li key={index}>• {pro}</li>
                     ))}
                   </ul>
                 </div>
                 <div>
-                  <span className="text-red-400">✗ Cons:</span>
-                  <ul className="text-gray-400 ml-4 mt-1">
+                  <span className='text-red-400'>✗ Cons:</span>
+                  <ul className='text-gray-400 ml-4 mt-1'>
                     {algorithmInfo.cons.map((con, index) => (
                       <li key={index}>• {con}</li>
                     ))}
                   </ul>
                 </div>
               </div>
+              {algorithmMeta &&
+                (algorithmMeta.completionRate != null ||
+                  algorithmMeta.speed != null) && (
+                  <div className='flex flex-wrap gap-2 mt-3 pt-2 border-t border-white/10'>
+                    {algorithmMeta.completionRate != null && (
+                      <span className='px-2 py-0.5 rounded-full text-xs bg-green-500/15 text-green-300 border border-green-500/30'>
+                        ✓ {algorithmMeta.completionRate}% completion
+                      </span>
+                    )}
+                    {algorithmMeta.speed != null && (
+                      <span className='px-2 py-0.5 rounded-full text-xs bg-blue-500/15 text-blue-300 border border-blue-500/30'>
+                        ⚡ {algorithmMeta.speed}
+                      </span>
+                    )}
+                    {algorithmMeta.difficulty != null && (
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-xs border ${
+                          algorithmMeta.difficulty === 'Easy'
+                            ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                            : algorithmMeta.difficulty === 'Medium'
+                              ? 'bg-yellow-500/15 text-yellow-300 border-yellow-500/30'
+                              : 'bg-red-500/15 text-red-300 border-red-500/30'
+                        }`}
+                      >
+                        {algorithmMeta.difficulty}
+                      </span>
+                    )}
+                  </div>
+                )}
             </div>
           )}
         </div>
@@ -351,13 +428,16 @@ const SettingsPanel = ({
         />
 
         {/* Grid Size */}
-        <div className="border-t border-white/10 pt-4">
-          <label htmlFor="grid-size" className="block text-sm font-medium text-gray-300 mb-2">
+        <div className='border-t border-white/10 pt-4'>
+          <label
+            htmlFor='grid-size'
+            className='block text-sm font-medium text-gray-300 mb-2'
+          >
             Grid Size
           </label>
           <select
-            id="grid-size"
-            className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none cursor-pointer hover:bg-white/15 transition-colors"
+            id='grid-size'
+            className='w-full px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none cursor-pointer hover:bg-white/15 transition-colors'
             value={`${settings.rows}x${settings.cols}`}
             onChange={handleGridSizeChange}
             style={{
@@ -365,11 +445,15 @@ const SettingsPanel = ({
               backgroundPosition: 'right 0.5rem center',
               backgroundRepeat: 'no-repeat',
               backgroundSize: '1.5em 1.5em',
-              paddingRight: '2.5rem'
+              paddingRight: '2.5rem',
             }}
           >
             {gridSizeOptions.map(option => (
-              <option key={option.value} value={option.value} className="bg-gray-800 text-white">
+              <option
+                key={option.value}
+                value={option.value}
+                className='bg-gray-800 text-white'
+              >
                 {option.label}
               </option>
             ))}
@@ -378,50 +462,60 @@ const SettingsPanel = ({
 
         {/* Random Seed */}
         <div>
-          <label htmlFor="seed" className="block text-sm font-medium text-gray-300 mb-2">
+          <label
+            htmlFor='seed'
+            className='block text-sm font-medium text-gray-300 mb-2'
+          >
             Random Seed
           </label>
-          <div className="flex gap-2">
+          <div className='flex gap-2'>
             <input
-              id="seed"
-              type="number"
-              className="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              id='seed'
+              type='number'
+              className='flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent'
               value={settings.seed}
               onChange={handleSeedChange}
-              placeholder="Enter seed"
+              placeholder='Enter seed'
             />
             <button
               onClick={handleRandomSeed}
-              className="px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-white hover:bg-white/20"
-              title="Generate random seed"
+              className='px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-white hover:bg-white/20'
+              title='Generate random seed'
             >
-              <RotateCcw className="w-4 h-4" />
+              <RotateCcw className='w-4 h-4' />
             </button>
           </div>
         </div>
 
         {/* Data Management */}
-        <div className="border-t border-white/10 pt-4">
-          <h4 className="text-lg font-medium text-gray-200 mb-3">Data Management</h4>
+        <div className='border-t border-white/10 pt-4'>
+          <h4 className='text-lg font-medium text-gray-200 mb-3'>
+            Data Management
+          </h4>
 
-          <div className="flex flex-wrap gap-2">
+          <div className='flex flex-wrap gap-2'>
             <button
               onClick={onExportSettings}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-xl hover:bg-blue-500/30"
+              className='flex items-center gap-2 px-4 py-2 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-xl hover:bg-blue-500/30'
             >
-              <Download className="w-4 h-4" />
+              <Download className='w-4 h-4' />
               Export
             </button>
-            <label className="flex items-center gap-2 px-4 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl hover:bg-green-500/30 cursor-pointer">
-              <Upload className="w-4 h-4" />
+            <label className='flex items-center gap-2 px-4 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl hover:bg-green-500/30 cursor-pointer'>
+              <Upload className='w-4 h-4' />
               Import
-              <input type="file" accept=".json" onChange={handleFileImport} className="hidden" />
+              <input
+                type='file'
+                accept='.json'
+                onChange={handleFileImport}
+                className='hidden'
+              />
             </label>
             <button
               onClick={onClearData}
-              className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl hover:bg-red-500/30"
+              className='flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl hover:bg-red-500/30'
             >
-              <RotateCcw className="w-4 h-4" />
+              <RotateCcw className='w-4 h-4' />
               Clear Data
             </button>
           </div>

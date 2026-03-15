@@ -1,6 +1,7 @@
 // FILE: src/engine/pathfinding/strategies/AStarStrategy.js
 import { GraphPathfindingStrategy } from '../PathfindingStrategy.js';
 import { getHead } from '../../snake.js';
+import { CircularQueue } from '../../../utils/collections.js';
 
 /**
  * Pathfinding strategy that uses the A* search algorithm to reach the fruit.
@@ -24,7 +25,7 @@ export class AStarStrategy extends GraphPathfindingStrategy {
    * @param {Object} [options={}] - Optional strategy hints (currently unused).
    * @returns {Promise<import('../PathfindingStrategy.js').PlanningResult>} Planned move and metadata.
    */
-  async planNextMove(standardState, options = {}) { // eslint-disable-line no-unused-vars
+  async planNextMove(standardState, _options = {}) {
     const gameState = standardState?.original ?? null;
     const snake = gameState?.snake ?? null;
     const fruit = Number.isInteger(gameState?.fruit) ? gameState.fruit : -1;
@@ -76,7 +77,11 @@ export class AStarStrategy extends GraphPathfindingStrategy {
           }
 
           const bestScore = this.heuristic(best, fruit, standardState);
-          const candidateScore = this.heuristic(candidate, fruit, standardState);
+          const candidateScore = this.heuristic(
+            candidate,
+            fruit,
+            standardState
+          );
           return candidateScore < bestScore ? candidate : best;
         }, null);
 
@@ -138,7 +143,9 @@ export class AStarStrategy extends GraphPathfindingStrategy {
    */
   validatePathSafety(plannedPath, state) {
     const gameState = state?.original ?? null;
-    const snakeBody = Array.isArray(gameState?.snake?.body) ? [...gameState.snake.body] : null;
+    const snakeBody = Array.isArray(gameState?.snake?.body)
+      ? [...gameState.snake.body]
+      : null;
 
     if (!snakeBody || snakeBody.length === 0 || plannedPath.length === 0) {
       return { isSafe: false, tailReachable: false };
@@ -152,7 +159,12 @@ export class AStarStrategy extends GraphPathfindingStrategy {
       return { isSafe: false, tailReachable: false };
     }
 
-    const tailReachable = this.isTailReachable(simulated.head, simulated.tail, state, simulated.blockedCells);
+    const tailReachable = this.isTailReachable(
+      simulated.head,
+      simulated.tail,
+      state,
+      simulated.blockedCells
+    );
     return {
       isSafe: tailReachable,
       tailReachable,
@@ -205,7 +217,12 @@ export class AStarStrategy extends GraphPathfindingStrategy {
    */
   isTailReachable(start, tail, state, blockedCells) {
     const { rows, cols } = state.config ?? {};
-    if (!Number.isInteger(rows) || !Number.isInteger(cols) || rows <= 0 || cols <= 0) {
+    if (
+      !Number.isInteger(rows) ||
+      !Number.isInteger(cols) ||
+      rows <= 0 ||
+      cols <= 0
+    ) {
       return false;
     }
 
@@ -214,11 +231,12 @@ export class AStarStrategy extends GraphPathfindingStrategy {
     }
 
     const visited = new Set([start]);
-    const queue = [start];
+    const queue = new CircularQueue(rows * cols + 4);
+    queue.enqueue(start);
     const neighborOffsets = this.getMovementOffsets();
 
-    while (queue.length > 0) {
-      const current = queue.shift();
+    while (!queue.isEmpty()) {
+      const current = queue.dequeue();
       const currentRow = Math.floor(current / cols);
       const currentCol = current % cols;
 
@@ -240,7 +258,7 @@ export class AStarStrategy extends GraphPathfindingStrategy {
 
         if (!visited.has(neighbor)) {
           visited.add(neighbor);
-          queue.push(neighbor);
+          queue.enqueue(neighbor);
         }
       }
     }
@@ -312,7 +330,7 @@ export class AStarStrategy extends GraphPathfindingStrategy {
         simulated.head,
         simulated.tail,
         state,
-        simulated.blockedCells,
+        simulated.blockedCells
       );
 
       if (!tailReachable) {
@@ -323,11 +341,11 @@ export class AStarStrategy extends GraphPathfindingStrategy {
         simulated.head,
         state,
         simulated.blockedCells,
-        simulated.tail,
+        simulated.tail
       );
 
       const fruitScore = -this.heuristic(neighbor, fruit, state);
-      const score = reachableCells + (fruitScore * 0.5);
+      const score = reachableCells + fruitScore * 0.5;
 
       if (score > bestScore) {
         bestScore = score;
@@ -366,16 +384,22 @@ export class AStarStrategy extends GraphPathfindingStrategy {
    */
   countReachableCells(start, state, blockedCells, tail) {
     const { rows, cols } = state.config ?? {};
-    if (!Number.isInteger(rows) || !Number.isInteger(cols) || rows <= 0 || cols <= 0) {
+    if (
+      !Number.isInteger(rows) ||
+      !Number.isInteger(cols) ||
+      rows <= 0 ||
+      cols <= 0
+    ) {
       return 0;
     }
 
     const visited = new Set([start]);
-    const queue = [start];
+    const queue = new CircularQueue(rows * cols + 4);
+    queue.enqueue(start);
     const neighborOffsets = this.getMovementOffsets();
 
-    while (queue.length > 0) {
-      const current = queue.shift();
+    while (!queue.isEmpty()) {
+      const current = queue.dequeue();
       const currentRow = Math.floor(current / cols);
       const currentCol = current % cols;
 
@@ -393,7 +417,7 @@ export class AStarStrategy extends GraphPathfindingStrategy {
 
         if (!visited.has(neighbor)) {
           visited.add(neighbor);
-          queue.push(neighbor);
+          queue.enqueue(neighbor);
         }
       }
     }
@@ -450,7 +474,10 @@ export class AStarStrategy extends GraphPathfindingStrategy {
         if (tentativeGScore < (gScore.get(neighbor) ?? Infinity)) {
           cameFrom.set(neighbor, current);
           gScore.set(neighbor, tentativeGScore);
-          fScore.set(neighbor, tentativeGScore + this.heuristic(neighbor, goal, state));
+          fScore.set(
+            neighbor,
+            tentativeGScore + this.heuristic(neighbor, goal, state)
+          );
 
           if (!openSet.has(neighbor)) {
             openSet.add(neighbor);
