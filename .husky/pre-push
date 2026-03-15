@@ -1,0 +1,18 @@
+#!/usr/bin/env sh
+
+echo "🚀 Running pre-push checks..."
+
+# Run comprehensive test suite with coverage
+echo "🧪 Running full test suite with coverage..."
+npm run test:coverage -- --run --reporter=verbose
+
+# Ensure build works in production mode
+echo "🏗️ Verifying production build..."
+npm run build
+
+# Run any simulation tests to ensure core game logic works
+echo "🎮 Running quick simulation test..."
+npm run simulate -- --games 10 --rows 10 --cols 10
+
+echo "✅ Pre-push checks passed! Safe to push."
+echo "🎉 All quality gates passed!"

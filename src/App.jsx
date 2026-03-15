@@ -16,7 +16,18 @@ import LoadingScreen from './ui/components/LoadingScreen.jsx';
  * @returns {JSX.Element} Fully composed Snake AI application view.
  */
 export default function App() {
-  const { gameState, stats, settings, updateSettings, toggleGame, stepGame, resetGameState } = useGameState();
+  const { 
+    gameState, 
+    stats, 
+    settings, 
+    updateSettings, 
+    toggleGame, 
+    stepGame, 
+    resetGameState,
+    exportSettings,
+    importSettings,
+    clearData
+  } = useGameState();
   const { canvasRef, draw } = useCanvas(gameState, settings);
   const [showSettings, setShowSettings] = useState(false);
   const [showCycle, setShowCycle] = useState(true);
@@ -95,6 +106,9 @@ export default function App() {
             settings={settings}
             showSettings={showSettings}
             onUpdateSettings={updateSettings}
+            onExportSettings={exportSettings}
+            onImportSettings={importSettings}
+            onClearData={clearData}
           />
         </div>
       </main>

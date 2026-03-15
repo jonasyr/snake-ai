@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { Info, Zap } from 'lucide-react';
 import StatCard from './StatCard.jsx';
+import SettingsPanel from './SettingsPanel.jsx';
 
 function PerformanceSection({ stats, cycleLength }) {
   const fillPercentage = cycleLength > 0 ? Math.round(((stats.length || 1) / cycleLength) * 100) : 0;
@@ -84,65 +85,6 @@ AlgorithmStatusSection.propTypes = {
   status: PropTypes.string,
 };
 
-function SettingsSection({ settings, onUpdateSettings }) {
-  const gridValue = `${settings.rows}x${settings.cols}`;
-
-  const handleGridChange = event => {
-    const [rows, cols] = event.target.value.split('x').map(Number);
-    onUpdateSettings({ ...settings, rows, cols });
-  };
-
-  return (
-    <div className="bg-black/20 backdrop-blur-xl border border-white/10 rounded-2xl p-6">
-      <h3 className="text-xl font-semibold mb-4">Game Settings</h3>
-      <div className="space-y-4">
-        <div>
-          <label htmlFor="grid-size-select" className="block text-sm font-medium text-gray-300 mb-2">
-            Grid Size
-          </label>
-          <select
-            id="grid-size-select"
-            className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-white"
-            value={gridValue}
-            onChange={handleGridChange}
-          >
-            <option value="16x16">16×16 (Small)</option>
-            <option value="20x20">20×20 (Medium)</option>
-            <option value="24x24">24×24 (Large)</option>
-            <option value="30x20">30×20 (Wide)</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              checked={settings.shortcutsEnabled !== false}
-              onChange={event =>
-                onUpdateSettings({
-                  ...settings,
-                  shortcutsEnabled: event.target.checked,
-                })
-              }
-              className="w-4 h-4 text-blue-600 bg-white/10 border-white/20 rounded focus:ring-blue-500"
-            />
-            <span className="text-sm text-gray-300">Enable Smart Shortcuts</span>
-          </label>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-SettingsSection.propTypes = {
-  settings: PropTypes.shape({
-    rows: PropTypes.number,
-    cols: PropTypes.number,
-    shortcutsEnabled: PropTypes.bool,
-  }).isRequired,
-  onUpdateSettings: PropTypes.func.isRequired,
-};
-
 function VisualGuideSection() {
   return (
     <div className="bg-black/20 backdrop-blur-xl border border-white/10 rounded-2xl p-6">
@@ -177,9 +119,21 @@ function VisualGuideSection() {
  * @param {object} props.settings - Current settings values.
  * @param {boolean} props.showSettings - Whether the settings panel is visible.
  * @param {(settings: object) => void} props.onUpdateSettings - Settings update callback.
+ * @param {() => void} props.onExportSettings - Export settings callback.
+ * @param {(jsonString: string) => object|null} props.onImportSettings - Import settings callback.
+ * @param {() => void} props.onClearData - Clear data callback.
  * @returns {JSX.Element}
  */
-export default function StatsSidebar({ stats, gameState, settings, showSettings, onUpdateSettings }) {
+export default function StatsSidebar({ 
+  stats, 
+  gameState, 
+  settings, 
+  showSettings, 
+  onUpdateSettings,
+  onExportSettings,
+  onImportSettings,
+  onClearData
+}) {
   const memoizedStats = useMemo(
     () => ({
       score: stats?.score || 0,
@@ -200,7 +154,15 @@ export default function StatsSidebar({ stats, gameState, settings, showSettings,
     <div className="space-y-6">
       <PerformanceSection stats={memoizedStats} cycleLength={cycleLength} />
       <AlgorithmStatusSection stats={memoizedStats} status={gameState?.status} />
-      {showSettings && <SettingsSection settings={settings} onUpdateSettings={onUpdateSettings} />}
+      {showSettings && (
+        <SettingsPanel
+          settings={settings}
+          onUpdateSettings={onUpdateSettings}
+          onExportSettings={onExportSettings}
+          onImportSettings={onImportSettings}
+          onClearData={onClearData}
+        />
+      )}
       <VisualGuideSection />
     </div>
   );
@@ -216,7 +178,14 @@ StatsSidebar.propTypes = {
     rows: PropTypes.number,
     cols: PropTypes.number,
     shortcutsEnabled: PropTypes.bool,
+    pathfindingAlgorithm: PropTypes.string,
+    safetyBuffer: PropTypes.number,
+    lateGameLock: PropTypes.number,
+    seed: PropTypes.number,
   }).isRequired,
   showSettings: PropTypes.bool.isRequired,
   onUpdateSettings: PropTypes.func.isRequired,
+  onExportSettings: PropTypes.func.isRequired,
+  onImportSettings: PropTypes.func.isRequired,
+  onClearData: PropTypes.func.isRequired,
 };

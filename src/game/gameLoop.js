@@ -147,22 +147,23 @@ export class GameLoop {
   step() {
     if (this.processingQueue) {
       console.warn('Ignoring manual step while update is in progress.');
-      return {
+      return Promise.resolve({
         state: this.state,
         result: { valid: false, reason: 'Update in progress' },
-      };
+      });
     }
 
     if (this.state.status === GAME_STATUS.GAME_OVER || this.state.status === GAME_STATUS.COMPLETE) {
-      return;
+      return Promise.resolve(undefined);
     }
-    let result;
 
-    this.enqueueUpdate(() => {
-      result = this.executeStep();
+    return this.enqueueUpdate(() => this.executeStep()).catch(error => {
+      this.reportError(error, { phase: 'stepPromise' });
+      return {
+        state: this.state,
+        result: { valid: false, reason: 'Manual step failed with exception' },
+      };
     });
-
-    return result;
   }
 
   /**
@@ -187,8 +188,9 @@ export class GameLoop {
       return;
     }
 
-    this.enqueueUpdate(() => {
-      this.executeTick(currentTime);
+    const pending = this.enqueueUpdate(() => this.executeTick(currentTime));
+    pending.catch(error => {
+      this.reportError(error, { phase: 'tickPromise' });
     });
   }
 
@@ -240,13 +242,17 @@ export class GameLoop {
   }
 
   enqueueUpdate(task) {
-    this.updateQueue.push(task);
-    if (!this.processingQueue) {
-      this.processQueue();
-    }
+    return new Promise((resolve, reject) => {
+      this.updateQueue.push({ task, resolve, reject });
+      if (!this.processingQueue) {
+        this.processQueue().catch(error => {
+          this.reportError(error, { phase: 'processQueueRoot' });
+        });
+      }
+    });
   }
 
-  processQueue() {
+  async processQueue() {
     if (this.processingQueue) {
       return;
     }
@@ -254,11 +260,16 @@ export class GameLoop {
     this.processingQueue = true;
     try {
       while (this.updateQueue.length > 0) {
-        const task = this.updateQueue.shift();
+        const entry = this.updateQueue.shift();
+        if (!entry) {
+          continue;
+        }
         try {
-          task();
+          const result = await entry.task();
+          entry.resolve(result);
         } catch (error) {
           this.reportError(error, { phase: 'processQueue' });
+          entry.reject(error);
         }
       }
     } finally {
@@ -266,10 +277,10 @@ export class GameLoop {
     }
   }
 
-  executeStep() {
+  async executeStep() {
     try {
       const currentState = this.state;
-      const result = gameTick(currentState);
+      const result = await gameTick(currentState);
 
       if (result?.result?.valid) {
         const nextState = result.state;
@@ -303,7 +314,7 @@ export class GameLoop {
     }
   }
 
-  executeTick(currentTime) {
+  async executeTick(currentTime) {
     const safeCurrentTime = Number.isFinite(currentTime) ? currentTime : getNow();
     const deltaTimeRaw = safeCurrentTime - this.lastTick;
     const deltaTime = Number.isFinite(deltaTimeRaw) && deltaTimeRaw > 0 ? deltaTimeRaw : 0;
@@ -333,7 +344,7 @@ export class GameLoop {
 
       let tickResult;
       try {
-        tickResult = gameTick(workingState);
+        tickResult = await gameTick(workingState);
       } catch (error) {
         this.reportError(error, { phase: 'executeTick', tickCount });
         this.running = false;

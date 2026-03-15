@@ -11,8 +11,8 @@ const TERMINAL_STATUSES = new Set([
 ]);
 
 describe('simulation utilities', () => {
-  it('runs a single game to completion or failure', () => {
-    const result = runGame({ rows: 8, cols: 8, seed: 2025 });
+  it('runs a single game to completion or failure', async () => {
+    const result = await runGame({ rows: 8, cols: 8, seed: 2025 });
 
     expect(result).toMatchObject({
       seed: expect.any(Number),
@@ -27,8 +27,8 @@ describe('simulation utilities', () => {
     expect(result.stats.moves).toBeGreaterThan(0);
   });
 
-  it('aggregates multiple games with deterministic runs when seeds are reused', () => {
-    const { summary, runs } = simulateGames({
+  it('aggregates multiple games with deterministic runs when seeds are reused', async () => {
+    const { summary, runs } = await simulateGames({
       games: 4,
       config: { rows: 6, cols: 6, seed: 99 },
       uniqueSeeds: false,

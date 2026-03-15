@@ -33,23 +33,23 @@ describe('Game Engine Integration', () => {
   });
 
   describe('gameTick', () => {
-    it('should not tick when paused', () => {
-      const result = gameTick(gameState);
+    it('should not tick when paused', async () => {
+      const result = await gameTick(gameState);
 
       expect(result.result.valid).toBe(false);
       expect(result.result.reason).toContain('not running');
     });
 
-    it('should advance game when playing', () => {
+    it('should advance game when playing', async () => {
       const playingState = setGameStatus(gameState, GAME_STATUS.PLAYING);
-      const result = gameTick(playingState);
+      const result = await gameTick(playingState);
 
       expect(result.result.valid).toBe(true);
       expect(result.state.moves).toBe(1);
       expect(result.state.snake.body).toHaveLength(1);
     });
 
-    it('should grow snake when eating fruit', () => {
+    it('should grow snake when eating fruit', async () => {
       // Position fruit next to snake head
       const nextCell = gameState.cycle[1];
 
@@ -59,7 +59,7 @@ describe('Game Engine Integration', () => {
         status: GAME_STATUS.PLAYING,
       };
 
-      const result = gameTick(modifiedState);
+      const result = await gameTick(modifiedState);
 
       expect(result.state.snake.body).toHaveLength(2);
       expect(result.state.score).toBeGreaterThan(0);
@@ -80,7 +80,7 @@ describe('Game Engine Integration', () => {
   });
 
   describe('game completion', () => {
-    it('should detect game completion when grid full', () => {
+    it('should detect game completion when grid full', async () => {
       // Create a nearly full grid
       const almostFullState = {
         ...gameState,
@@ -91,7 +91,7 @@ describe('Game Engine Integration', () => {
         status: GAME_STATUS.PLAYING,
       };
 
-      const result = gameTick(almostFullState);
+      const result = await gameTick(almostFullState);
       expect(result.state.status).toBe(GAME_STATUS.COMPLETE);
     });
   });

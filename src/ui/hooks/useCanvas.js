@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { indexToPosition } from '../../utils/math.js';
 import { COLORS, DEFAULT_CONFIG } from '../../utils/constants.js';
+import { getVisualizer } from '../visualizers/index.js';
 
 /**
  * Frozen empty array used as a safe default when path planning data is
@@ -12,14 +13,16 @@ const EMPTY_ARRAY = Object.freeze([]);
 const noop = () => {};
 
 /** requestAnimationFrame polyfill for non-browser environments (e.g. tests). */
-const RAF_FALLBACK = typeof window !== 'undefined' && window.requestAnimationFrame
-  ? window.requestAnimationFrame.bind(window)
-  : (cb) => setTimeout(cb, 16);
+const RAF_FALLBACK =
+  typeof window !== 'undefined' && window.requestAnimationFrame
+    ? window.requestAnimationFrame.bind(window)
+    : cb => setTimeout(cb, 16);
 
 /** cancelAnimationFrame counterpart for {@link RAF_FALLBACK}. */
-const CANCEL_RAF_FALLBACK = typeof window !== 'undefined' && window.cancelAnimationFrame
-  ? window.cancelAnimationFrame.bind(window)
-  : clearTimeout;
+const CANCEL_RAF_FALLBACK =
+  typeof window !== 'undefined' && window.cancelAnimationFrame
+    ? window.cancelAnimationFrame.bind(window)
+    : clearTimeout;
 
 /**
  * Render the static grid lines used as a backdrop behind the snake, fruit, and
@@ -48,100 +51,6 @@ function drawGrid(ctx, rows, cols, cellSize) {
   }
 
   ctx.stroke();
-}
-
-/**
- * Render the Hamiltonian cycle overlay so players can visualize the default
- * traversal order used by the AI.
- *
- * @param {CanvasRenderingContext2D} ctx - Drawing context.
- * @param {number[]} cycle - Ordered list of cell indices.
- * @param {number} cols - Grid columns.
- * @param {number} cellSize - Cell dimension in pixels.
- */
-function drawCycle(ctx, cycle, cols, cellSize) {
-  if (!Array.isArray(cycle) || cycle.length === 0) return;
-
-  ctx.strokeStyle = COLORS.CYCLE;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-
-  for (let i = 0; i < cycle.length; i++) {
-    const from = cycle[i];
-    const to = cycle[(i + 1) % cycle.length];
-    if (from < 0 || to < 0) continue;
-
-    const [fromRow, fromCol] = indexToPosition(from, cols);
-    const [toRow, toCol] = indexToPosition(to, cols);
-
-    const fromX = fromCol * cellSize + cellSize / 2;
-    const fromY = fromRow * cellSize + cellSize / 2;
-    const toX = toCol * cellSize + cellSize / 2;
-    const toY = toRow * cellSize + cellSize / 2;
-
-    if (i === 0) {
-      ctx.moveTo(fromX, fromY);
-    }
-    ctx.lineTo(toX, toY);
-  }
-
-  ctx.stroke();
-}
-
-/**
- * Highlight the currently executed shortcut edge as a bold line across the
- * grid.
- *
- * @param {CanvasRenderingContext2D} ctx - Drawing context.
- * @param {[number, number]} shortcut - Start and end cell indices.
- * @param {number} cols - Grid columns.
- * @param {number} cellSize - Cell dimension in pixels.
- */
-function drawShortcut(ctx, shortcut, cols, cellSize) {
-  if (!Array.isArray(shortcut) || shortcut.length < 2) return;
-
-  ctx.strokeStyle = COLORS.SHORTCUT_EDGE;
-  ctx.lineWidth = 3;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-
-  const [from, to] = shortcut;
-  const [fromRow, fromCol] = indexToPosition(from, cols);
-  const [toRow, toCol] = indexToPosition(to, cols);
-
-  ctx.moveTo(fromCol * cellSize + cellSize / 2, fromRow * cellSize + cellSize / 2);
-  ctx.lineTo(toCol * cellSize + cellSize / 2, toRow * cellSize + cellSize / 2);
-  ctx.stroke();
-}
-
-/**
- * Render the dotted preview path that the snake intends to follow after the
- * current move.
- *
- * @param {CanvasRenderingContext2D} ctx - Drawing context.
- * @param {number} snakeHead - Current head cell index.
- * @param {number[]} path - Planned upcoming cell indices.
- * @param {number} cols - Grid columns.
- * @param {number} cellSize - Cell dimension in pixels.
- */
-function drawPlannedPath(ctx, snakeHead, path, cols, cellSize) {
-  if (!Array.isArray(path) || path.length === 0 || snakeHead === undefined) return;
-
-  ctx.strokeStyle = COLORS.SHORTCUT;
-  ctx.lineWidth = 2;
-  ctx.setLineDash([cellSize / 2, cellSize / 2]);
-  ctx.beginPath();
-
-  const [headRow, headCol] = indexToPosition(snakeHead, cols);
-  ctx.moveTo(headCol * cellSize + cellSize / 2, headRow * cellSize + cellSize / 2);
-
-  for (const cell of path) {
-    const [row, col] = indexToPosition(cell, cols);
-    ctx.lineTo(col * cellSize + cellSize / 2, row * cellSize + cellSize / 2);
-  }
-
-  ctx.stroke();
-  ctx.setLineDash([]);
 }
 
 /**
@@ -207,7 +116,15 @@ function fillCell(ctx, cell, cols, cellSize, color, shrink = 0) {
  * @param {string} color - Fill color.
  * @param {number} [shrink=0] - Optional inset.
  */
-function drawSnakeSection(ctx, cells, startIndex, cols, cellSize, color, shrink = 0) {
+function drawSnakeSection(
+  ctx,
+  cells,
+  startIndex,
+  cols,
+  cellSize,
+  color,
+  shrink = 0
+) {
   if (!Array.isArray(cells) || cells.length <= startIndex) {
     return;
   }
@@ -226,17 +143,17 @@ function drawSnakeSection(ctx, cells, startIndex, cols, cellSize, color, shrink 
 
 /**
  * Create an off-screen canvas containing immutable background layers (grid and
- * optional cycle). This allows the main canvas to quickly restore background
- * pixels without re-rendering geometry each frame.
+ * optional algorithm-specific static overlay). This allows the main canvas to
+ * quickly restore background pixels without re-rendering geometry each frame.
  *
  * @param {number} rows - Grid rows.
  * @param {number} cols - Grid columns.
  * @param {number} cellSize - Cell dimension in pixels.
- * @param {number[]} cycle - Hamiltonian cycle path.
- * @param {boolean} showCycle - Whether to include the cycle in the static layer.
+ * @param {import('../visualizers/BaseVisualizer.js').BaseVisualizer} visualizer - Active visualizer.
+ * @param {object} state - Current game state (needed for static overlay data).
  * @returns {HTMLCanvasElement | null} Off-screen canvas or null when DOM access is unavailable.
  */
-function createStaticLayer(rows, cols, cellSize, cycle, showCycle) {
+function createStaticLayer(rows, cols, cellSize, visualizer, state) {
   if (typeof document === 'undefined') {
     return null;
   }
@@ -255,10 +172,7 @@ function createStaticLayer(rows, cols, cellSize, cycle, showCycle) {
   ctx.fillStyle = COLORS.BACKGROUND;
   ctx.fillRect(0, 0, width, height);
   drawGrid(ctx, rows, cols, cellSize);
-
-  if (showCycle && Array.isArray(cycle) && cycle.length > 0) {
-    drawCycle(ctx, cycle, cols, cellSize);
-  }
+  visualizer.renderStaticOverlay(ctx, state, cols, cellSize);
 
   return canvas;
 }
@@ -306,12 +220,12 @@ function createPathSignature(pathCells, shortcutEdge, showShortcuts) {
     return 'off';
   }
 
-  const pathPart = Array.isArray(pathCells) && pathCells.length
-    ? pathCells.join(',')
-    : '';
-  const shortcutPart = Array.isArray(shortcutEdge) && shortcutEdge.length === 2
-    ? `${shortcutEdge[0]}-${shortcutEdge[1]}`
-    : '';
+  const pathPart =
+    Array.isArray(pathCells) && pathCells.length ? pathCells.join(',') : '';
+  const shortcutPart =
+    Array.isArray(shortcutEdge) && shortcutEdge.length === 2
+      ? `${shortcutEdge[0]}-${shortcutEdge[1]}`
+      : '';
   return `${pathPart}|${shortcutPart}`;
 }
 
@@ -326,8 +240,18 @@ function createPathSignature(pathCells, shortcutEdge, showShortcuts) {
  * @param {number} cols - Grid columns.
  * @param {number} cellSize - Cell dimension in pixels.
  * @param {{showCycle:boolean, showShortcuts:boolean}} options - Visualization options.
+ * @param {import('../visualizers/BaseVisualizer.js').BaseVisualizer} visualizer - Active visualizer.
  */
-function renderFullScene(ctx, staticCanvas, state, rows, cols, cellSize, options) {
+function renderFullScene(
+  ctx,
+  staticCanvas,
+  state,
+  rows,
+  cols,
+  cellSize,
+  options,
+  visualizer
+) {
   const width = cols * cellSize;
   const height = rows * cellSize;
 
@@ -339,23 +263,15 @@ function renderFullScene(ctx, staticCanvas, state, rows, cols, cellSize, options
     ctx.fillStyle = COLORS.BACKGROUND;
     ctx.fillRect(0, 0, width, height);
     drawGrid(ctx, rows, cols, cellSize);
-    if (options.showCycle) {
-      drawCycle(ctx, state.cycle, cols, cellSize);
-    }
+    visualizer.renderStaticOverlay(ctx, state, cols, cellSize);
   }
 
   drawFruitDot(ctx, state.fruit, cols, cellSize);
 
+  visualizer.renderDynamicOverlay(ctx, state, options, cols, cellSize);
+
   const snakeBody = state.snake?.body ?? EMPTY_ARRAY;
   const snakeHead = snakeBody[0];
-
-  if (options.showShortcuts && state.plannerData?.plannedPath?.length && snakeHead !== undefined) {
-    drawPlannedPath(ctx, snakeHead, state.plannerData.plannedPath, cols, cellSize);
-  }
-
-  if (options.showShortcuts && state.plannerData?.shortcutEdge) {
-    drawShortcut(ctx, state.plannerData.shortcutEdge, cols, cellSize);
-  }
 
   if (snakeBody.length) {
     drawSnakeSection(ctx, snakeBody, 1, cols, cellSize, COLORS.SNAKE_BODY, 4);
@@ -376,8 +292,9 @@ function renderFullScene(ctx, staticCanvas, state, rows, cols, cellSize, options
  * @param {number} cellSize - Cell size in pixels.
  * @param {{showCycle:boolean, showShortcuts:boolean}} options - Visualization options.
  * @param {number[]} pathCells - Planned path cells for the current frame.
- * @param {[number, number]|null} shortcutEdge - Shortcut edge for the current frame.
+ * @param {number[]} shortcutCells - Shortcut cells for the current frame.
  * @param {boolean} hasOverlay - Whether overlay layers exist.
+ * @param {import('../visualizers/BaseVisualizer.js').BaseVisualizer} visualizer - Active visualizer.
  */
 function renderIncremental(
   ctx,
@@ -389,11 +306,21 @@ function renderIncremental(
   cellSize,
   options,
   pathCells,
-  shortcutEdge,
-  hasOverlay
+  shortcutCells,
+  hasOverlay,
+  visualizer
 ) {
   if (!staticCanvas) {
-    renderFullScene(ctx, staticCanvas, state, rows, cols, cellSize, options);
+    renderFullScene(
+      ctx,
+      staticCanvas,
+      state,
+      rows,
+      cols,
+      cellSize,
+      options,
+      visualizer
+    );
     return;
   }
 
@@ -434,7 +361,7 @@ function renderIncremental(
     }
   }
 
-  cellsToRestore.forEach((cell) => {
+  cellsToRestore.forEach(cell => {
     restoreCellFromStatic(ctx, staticCanvas, cell, cols, cellSize);
   });
 
@@ -443,13 +370,7 @@ function renderIncremental(
     drawFruitDot(ctx, fruit, cols, cellSize);
   }
 
-  if (options.showShortcuts && Array.isArray(pathCells) && pathCells.length && snakeHead !== undefined) {
-    drawPlannedPath(ctx, snakeHead, pathCells, cols, cellSize);
-  }
-
-  if (options.showShortcuts && Array.isArray(shortcutEdge)) {
-    drawShortcut(ctx, shortcutEdge, cols, cellSize);
-  }
+  visualizer.renderDynamicOverlay(ctx, state, options, cols, cellSize);
 
   if (snakeBody.length === 0) {
     return;
@@ -530,7 +451,7 @@ export function useCanvas(gameState, settings = DEFAULT_CONFIG) {
 
     needsFullRedrawRef.current = true;
     previousRenderRef.current = { initialized: false };
-    staticLayerRef.current = { canvas: null, key: '', cycleRef: null };
+    staticLayerRef.current = { canvas: null, key: '' };
 
     const cleanup = () => {
       if (rafRef.current !== null) {
@@ -557,7 +478,7 @@ export function useCanvas(gameState, settings = DEFAULT_CONFIG) {
         ctxRef.current = null;
       }
 
-      staticLayerRef.current = { canvas: null, key: '', cycleRef: null };
+      staticLayerRef.current = { canvas: null, key: '' };
       previousRenderRef.current = { initialized: false };
       needsFullRedrawRef.current = true;
       cleanupRef.current = null;
@@ -576,21 +497,31 @@ export function useCanvas(gameState, settings = DEFAULT_CONFIG) {
     const ctx = ctxRef.current;
     if (!ctx) return;
 
-    const { rows: currentRows, cols: currentCols, cellSize: currentCellSize } = dimensionsRef.current;
+    const {
+      rows: currentRows,
+      cols: currentCols,
+      cellSize: currentCellSize,
+    } = dimensionsRef.current;
     const appliedOptions = drawOptionsRef.current;
     const width = currentCols * currentCellSize;
     const height = currentRows * currentCellSize;
     const currentState = latestStateRef.current;
 
-    const cycle = currentState?.cycle ?? null;
-    const showCycle = appliedOptions.showCycle && Array.isArray(cycle) && cycle.length > 0;
+    const visualizer = getVisualizer(settings?.pathfindingAlgorithm);
+    const vizCacheKey = visualizer.getStaticCacheKey(currentState);
 
     let staticLayer = staticLayerRef.current;
-    const staticKey = `${currentRows}x${currentCols}_${currentCellSize}_${showCycle ? 'cycle' : 'plain'}`;
+    const staticKey = `${currentRows}x${currentCols}_${currentCellSize}_${vizCacheKey}`;
 
-    if (!staticLayer || staticLayer.key !== staticKey || staticLayer.cycleRef !== cycle) {
-      const staticCanvas = createStaticLayer(currentRows, currentCols, currentCellSize, cycle, showCycle);
-      staticLayer = { canvas: staticCanvas, key: staticKey, cycleRef: cycle };
+    if (!staticLayer || staticLayer.key !== staticKey) {
+      const staticCanvas = createStaticLayer(
+        currentRows,
+        currentCols,
+        currentCellSize,
+        visualizer,
+        currentState
+      );
+      staticLayer = { canvas: staticCanvas, key: staticKey };
       staticLayerRef.current = staticLayer;
       needsFullRedrawRef.current = true;
     }
@@ -598,7 +529,17 @@ export function useCanvas(gameState, settings = DEFAULT_CONFIG) {
     if (!currentState) {
       if (staticLayer?.canvas) {
         ctx.clearRect(0, 0, width, height);
-        ctx.drawImage(staticLayer.canvas, 0, 0, width, height, 0, 0, width, height);
+        ctx.drawImage(
+          staticLayer.canvas,
+          0,
+          0,
+          width,
+          height,
+          0,
+          0,
+          width,
+          height
+        );
       } else {
         ctx.clearRect(0, 0, width, height);
         ctx.fillStyle = COLORS.BACKGROUND;
@@ -609,29 +550,42 @@ export function useCanvas(gameState, settings = DEFAULT_CONFIG) {
       return;
     }
 
-    const plannerData = currentState.plannerData;
-    const pathCells = appliedOptions.showShortcuts && Array.isArray(plannerData?.plannedPath)
-      ? plannerData.plannedPath
-      : EMPTY_ARRAY;
-    const shortcutEdge = appliedOptions.showShortcuts && Array.isArray(plannerData?.shortcutEdge)
-      ? plannerData.shortcutEdge
-      : null;
-    const hasOverlay = appliedOptions.showShortcuts && (pathCells.length > 0 || !!shortcutEdge);
+    const { pathCells, shortcutCells } = visualizer.getOverlayCells(
+      currentState,
+      appliedOptions
+    );
+    const hasOverlay = pathCells.length > 0 || shortcutCells.length > 0;
 
-    const pathSignature = createPathSignature(pathCells, shortcutEdge, appliedOptions.showShortcuts);
+    const pathSignature = createPathSignature(
+      pathCells,
+      shortcutCells,
+      appliedOptions.showShortcuts
+    );
     const prevRender = previousRenderRef.current || { initialized: false };
-    const optionsKey = `${showCycle ? '1' : '0'}_${appliedOptions.showShortcuts ? '1' : '0'}`;
+    const optionsKey = `${vizCacheKey}_${appliedOptions.showShortcuts ? '1' : '0'}`;
 
     if (
       prevRender.optionsKey !== optionsKey ||
-      prevRender.pathSignature !== pathSignature ||
-      prevRender.cycleRef !== cycle
+      prevRender.pathSignature !== pathSignature
     ) {
       needsFullRedrawRef.current = true;
     }
 
-    if (needsFullRedrawRef.current || !prevRender.initialized || !staticLayer?.canvas) {
-      renderFullScene(ctx, staticLayer?.canvas, currentState, currentRows, currentCols, currentCellSize, appliedOptions);
+    if (
+      needsFullRedrawRef.current ||
+      !prevRender.initialized ||
+      !staticLayer?.canvas
+    ) {
+      renderFullScene(
+        ctx,
+        staticLayer?.canvas,
+        currentState,
+        currentRows,
+        currentCols,
+        currentCellSize,
+        appliedOptions,
+        visualizer
+      );
       needsFullRedrawRef.current = false;
     } else {
       renderIncremental(
@@ -644,8 +598,9 @@ export function useCanvas(gameState, settings = DEFAULT_CONFIG) {
         currentCellSize,
         appliedOptions,
         pathCells,
-        shortcutEdge,
-        hasOverlay
+        shortcutCells,
+        hasOverlay,
+        visualizer
       );
     }
 
@@ -663,12 +618,15 @@ export function useCanvas(gameState, settings = DEFAULT_CONFIG) {
       fruit,
       optionsKey,
       pathSignature,
-      cycleRef: cycle,
-      pathCells: hasOverlay && pathCells.length ? Array.from(pathCells) : EMPTY_ARRAY,
-      shortcutCells: hasOverlay && Array.isArray(shortcutEdge) ? [shortcutEdge[0], shortcutEdge[1]] : EMPTY_ARRAY,
+      pathCells:
+        hasOverlay && pathCells.length ? Array.from(pathCells) : EMPTY_ARRAY,
+      shortcutCells:
+        hasOverlay && shortcutCells.length
+          ? Array.from(shortcutCells)
+          : EMPTY_ARRAY,
       hasOverlay,
     };
-  }, []);
+  }, [settings]);
 
   useEffect(() => {
     if (rafRef.current !== null) {
@@ -703,15 +661,18 @@ export function useCanvas(gameState, settings = DEFAULT_CONFIG) {
     };
   }, [stableRender]);
 
-  useEffect(() => () => {
-    if (cleanupRef.current) {
-      cleanupRef.current();
-      cleanupRef.current = null;
-    } else if (rafRef.current !== null) {
-      CANCEL_RAF_FALLBACK(rafRef.current);
-      rafRef.current = null;
-    }
-  }, []);
+  useEffect(
+    () => () => {
+      if (cleanupRef.current) {
+        cleanupRef.current();
+        cleanupRef.current = null;
+      } else if (rafRef.current !== null) {
+        CANCEL_RAF_FALLBACK(rafRef.current);
+        rafRef.current = null;
+      }
+    },
+    []
+  );
 
   const draw = useCallback(
     (options = {}) => {

@@ -3,13 +3,13 @@
  * Main game engine with pure state transitions - FIXED VERSION
  */
 
-import { createSnake, moveSnake, getHead, getTail, getLength, normalizeSnake } from './snake.js';
+import { createSnake, moveSnake, getHead, getLength, normalizeSnake } from './snake.js';
 import { spawnFruit, isFruitAt } from './fruit.js';
 import { generateHamiltonianCycle } from './hamiltonian.js';
 import { checkCollision } from './collision.js';
-import { planPath } from './shortcuts.js';
+import { ensurePathfindingStrategy } from './pathfinding/index.js';
 import { GAME_STATUS, MOVE_RESULT } from './types.js';
-import { DEFAULT_CONFIG } from '../utils/constants.js';
+import { DEFAULT_CONFIG, createRuntimeConfig, getAlgorithmConfig } from '../utils/constants.js';
 import { createObjectPool } from '../utils/collections.js';
 import { isValidCellIndex, validateGameConfig } from '../utils/guards.js';
 
@@ -106,6 +106,31 @@ function cloneState(source) {
   return clone;
 }
 
+/**
+ * Compute the next cell along the Hamiltonian cycle.
+ *
+ * @param {Object} gameState - Game state containing cycle data.
+ * @returns {number|null} Next cell index or null when unavailable.
+ */
+function getCycleFallbackMove(gameState) {
+  if (!gameState?.cycle || !gameState?.cycleIndex) {
+    return null;
+  }
+
+  const headCell = getHead(gameState.snake);
+  if (!Number.isInteger(headCell)) {
+    return null;
+  }
+
+  const headPos = gameState.cycleIndex.get(headCell);
+  if (headPos === undefined) {
+    return gameState.cycle?.[0] ?? null;
+  }
+
+  const nextPos = (headPos + 1) % gameState.cycle.length;
+  return gameState.cycle?.[nextPos] ?? null;
+}
+
 export function releaseGameState(state) {
   if (!state) {
     return;
@@ -125,7 +150,8 @@ export function releaseGameState(state) {
  * @returns {Object} Initial game state
  */
 export function initializeGame(config = DEFAULT_CONFIG) {
-  const { rows, cols, seed: rawSeed, ...otherConfig } = { ...DEFAULT_CONFIG, ...config };
+  const runtimeConfig = createRuntimeConfig(config);
+  const { rows, cols, seed: rawSeed } = runtimeConfig;
 
   const validation = validateGameConfig({ rows, cols, seed: rawSeed });
 
@@ -149,8 +175,15 @@ export function initializeGame(config = DEFAULT_CONFIG) {
   const snake = createSnake(startCell, hamiltonianData.cycle.length);
   const fruit = spawnFruit(snake.occupied, hamiltonianData.cycle.length);
 
+  const normalizedConfig = {
+    ...runtimeConfig,
+    rows,
+    cols,
+    seed,
+  };
+
   const initialState = acquireGameState();
-  initialState.config = { rows, cols, seed, ...otherConfig };
+  initialState.config = normalizedConfig;
   initialState.snake = snake;
   initialState.fruit = fruit;
   initialState.cycle = hamiltonianData.cycle;
@@ -169,7 +202,7 @@ export function initializeGame(config = DEFAULT_CONFIG) {
  * @param {Object} gameState - Current game state
  * @returns {Object} New game state and move result
  */
-export function gameTick(gameState) {
+export async function gameTick(gameState) {
   if (gameState.status !== GAME_STATUS.PLAYING) {
     return {
       state: gameState,
@@ -210,18 +243,55 @@ export function gameTick(gameState) {
   }
 
   // Plan next move
-  const pathPlan = planPath(workingState, workingState.config);
-  const nextCell = pathPlan.nextMove;
+  let pathPlan;
+  const runtimeConfig = createRuntimeConfig(workingState.config);
+  const algorithm = runtimeConfig.pathfindingAlgorithm ?? DEFAULT_CONFIG.pathfindingAlgorithm;
+  const algorithmConfig = getAlgorithmConfig(runtimeConfig, algorithm);
+
+  try {
+    const manager = await ensurePathfindingStrategy(workingState, {
+      algorithm,
+      config: algorithmConfig,
+      forceInitialize: workingState.moves === 0,
+    });
+
+    pathPlan = await manager.planMove(workingState, algorithmConfig);
+  } catch (error) {
+    console.error('Pathfinding error encountered during game tick.', {
+      error,
+      moves: workingState.moves,
+      status: workingState.status,
+    });
+    pathPlan = null;
+  }
+
+  let nextCell = pathPlan?.nextMove;
 
   if (!isValidCellIndex(nextCell, totalCells)) {
-    console.error('Planner generated invalid target cell.', {
-      nextCell,
-      totalCells,
-      pathPlan,
-    });
-    return {
-      state: workingState,
-      result: { valid: false, reason: 'Planner generated invalid target cell' },
+    const fallbackCell = getCycleFallbackMove(workingState);
+
+    if (!isValidCellIndex(fallbackCell, totalCells)) {
+      console.error('Planner generated invalid target cell.', {
+        nextCell,
+        totalCells,
+        pathPlan,
+      });
+      return {
+        state: workingState,
+        result: { valid: false, reason: 'Planner generated invalid target cell' },
+      };
+    }
+
+    nextCell = fallbackCell;
+    pathPlan = {
+      nextMove: fallbackCell,
+      isShortcut: false,
+      reason: 'Fallback move - planner invalid output',
+      plannedPath: [],
+      metadata: {
+        shortcutInfo: null,
+        cycleAvailable: Boolean(workingState?.cycle?.length),
+      },
     };
   }
 
@@ -247,13 +317,12 @@ export function gameTick(gameState) {
     : workingState.fruit;
 
   const plannerData = acquirePlannerData();
-  calculatePlannedPath(
-    newSnake,
-    nextFruit,
-    workingState.cycle,
-    workingState.cycleIndex,
-    plannerData.plannedPath
-  );
+
+  if (Array.isArray(pathPlan?.plannedPath)) {
+    for (let i = 0; i < pathPlan.plannedPath.length; i += 1) {
+      plannerData.plannedPath.push(pathPlan.plannedPath[i]);
+    }
+  }
 
   if (pathPlan.isShortcut) {
     const edge = plannerData.edgeCache;
@@ -299,45 +368,6 @@ export function gameTick(gameState) {
 }
 
 /**
- * Calculate planned path from head to fruit
- * @param {Object} snake - Snake state
- * @param {number} fruit - Fruit position
- * @param {number[]} cycle - Hamiltonian cycle
- * @param {Map} cycleIndex - Cycle position lookup
- * @param {number[]} target - Target array to populate with planned path
- * @returns {number[]} Planned path array
- */
-function calculatePlannedPath(snake, fruit, cycle, cycleIndex, target) {
-  if (!Array.isArray(target)) {
-    return [];
-  }
-
-  target.length = 0;
-
-  if (!snake || getLength(snake) === 0 || fruit < 0 || !cycle || !cycleIndex) {
-    return target;
-  }
-
-  const headCell = getHead(snake);
-  const headPos = cycleIndex.get(headCell);
-  const fruitPos = cycleIndex.get(fruit);
-
-  if (headPos === undefined || fruitPos === undefined) {
-    return target;
-  }
-
-  let currentPos = headPos;
-  const maxSteps = Math.min(cycle.length, 20); // Limit path length for performance
-
-  while (currentPos !== fruitPos && target.length < maxSteps) {
-    currentPos = (currentPos + 1) % cycle.length;
-    target.push(cycle[currentPos]);
-  }
-
-  return target;
-}
-
-/**
  * Change game status
  * @param {Object} gameState - Current game state
  * @param {string} status - New status
@@ -359,47 +389,114 @@ export function resetGame(config) {
 }
 
 /**
- * Get game statistics
- * @param {Object} gameState - Current game state
- * @returns {Object} Game statistics
+ * Create an empty statistics object with default values.
+ *
+ * @param {string} status - Current game status.
+ * @returns {Object} Empty statistics object.
  */
-export function getGameStats(gameState) {
-  const { snake, moves, score, cycle, fruit } = gameState;
+function createEmptyStats(status = 'unknown') {
+  return {
+    moves: 0,
+    length: 0,
+    score: 0,
+    free: 0,
+    distHeadApple: 0,
+    distHeadTail: 0,
+    shortcut: false,
+    efficiency: 0,
+    status,
+  };
+}
 
-  if (!snake || !cycle || !gameState.cycleIndex) {
-    return {
-      moves: 0,
-      length: 0,
-      score: 0,
-      free: 0,
-      distHeadApple: 0,
-      distHeadTail: 0,
-      shortcut: false,
-      efficiency: 0,
-      status: gameState.status || 'unknown',
-    };
+/**
+ * Calculate the Manhattan distance between two linearized grid cells.
+ *
+ * @param {number} from - Starting cell index.
+ * @param {number} to - Target cell index.
+ * @param {number} cols - Number of columns in the grid.
+ * @returns {number} Manhattan distance or 0 when unavailable.
+ */
+function manhattanDistance(from, to, cols) {
+  if (!Number.isInteger(from) || !Number.isInteger(to) || !Number.isInteger(cols) || cols <= 0) {
+    return 0;
   }
 
-  const head = getHead(snake);
-  const tail = getTail(snake);
-  const headPos = gameState.cycleIndex.get(head);
-  const tailPos = gameState.cycleIndex.get(tail);
-  const fruitPos = gameState.cycleIndex.get(fruit);
-  const snakeLength = getLength(snake);
+  const fromRow = Math.floor(from / cols);
+  const fromCol = from % cols;
+  const toRow = Math.floor(to / cols);
+  const toCol = to % cols;
+
+  return Math.abs(fromRow - toRow) + Math.abs(fromCol - toCol);
+}
+
+/**
+ * Get game statistics including distance metrics for the active strategy.
+ *
+ * @param {Object} gameState - Current game state.
+ * @returns {Object} Game statistics with distance measures.
+ */
+export function getGameStats(gameState) {
+  if (!gameState || typeof gameState !== 'object') {
+    return createEmptyStats();
+  }
+
+  const {
+    snake,
+    moves = 0,
+    score = 0,
+    cycle,
+    cycleIndex,
+    fruit,
+    config,
+    lastMoveWasShortcut,
+    status,
+  } = gameState;
+
+  if (!snake || !Array.isArray(snake.body) || snake.body.length === 0) {
+    return createEmptyStats(status);
+  }
+
+  const body = snake.body;
+  const head = body[0];
+  const tail = body[body.length - 1];
+  const totalCells = Array.isArray(cycle) && cycle.length > 0
+    ? cycle.length
+    : (Number.isInteger(config?.rows) && Number.isInteger(config?.cols)
+      ? config.rows * config.cols
+      : body.length);
+
+  const hasCycleData = Array.isArray(cycle) && cycle.length > 0 && cycleIndex instanceof Map;
+
+  let distHeadApple = 0;
+  let distHeadTail = 0;
+
+  if (hasCycleData) {
+    const headPos = cycleIndex.get(head);
+    const tailPos = cycleIndex.get(tail);
+    const fruitPos = cycleIndex.get(fruit);
+
+    if (headPos !== undefined && fruitPos !== undefined) {
+      distHeadApple = (fruitPos - headPos + cycle.length) % cycle.length;
+    }
+
+    if (headPos !== undefined && tailPos !== undefined) {
+      distHeadTail = (tailPos - headPos + cycle.length) % cycle.length;
+    }
+  } else {
+    const cols = Number.isInteger(config?.cols) ? config.cols : 0;
+    distHeadApple = manhattanDistance(head, fruit, cols);
+    distHeadTail = manhattanDistance(head, tail, cols);
+  }
 
   return {
-    moves: moves || 0,
-    length: snakeLength,
-    score: score || 0,
-    free: cycle.length - snakeLength,
-    distHeadApple: (headPos !== undefined && fruitPos !== undefined)
-      ? (fruitPos - headPos + cycle.length) % cycle.length
-      : 0,
-    distHeadTail: (headPos !== undefined && tailPos !== undefined)
-      ? (tailPos - headPos + cycle.length) % cycle.length
-      : 0,
-    shortcut: gameState.lastMoveWasShortcut || false,
+    moves,
+    length: body.length,
+    score,
+    free: Math.max(totalCells - body.length, 0),
+    distHeadApple,
+    distHeadTail,
+    shortcut: Boolean(lastMoveWasShortcut),
     efficiency: moves > 0 ? Math.round((score / moves) * 100) : 0,
-    status: gameState.status,
+    status,
   };
 }

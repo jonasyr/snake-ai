@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { initializeGame } from '../../engine/gameEngine.js';
 import { GameLoop } from '../../game/gameLoop.js';
-import { loadSettings, saveSettings, updateHighScore } from '../../game/settings.js';
+import { loadSettings, saveSettings, updateHighScore, exportSettings, importSettings, clearAllData } from '../../game/settings.js';
 import { seed } from '../../engine/rng.js';
 import { GAME_STATUS } from '../../engine/types.js';
-import { DEFAULT_CONFIG } from '../../utils/constants.js';
+import { DEFAULT_CONFIG, createRuntimeConfig } from '../../utils/constants.js';
 import { validateGameConfig } from '../../utils/guards.js';
 import { cyclicDistance } from '../../utils/math.js';
 
@@ -19,7 +19,7 @@ function safeLoadSettings() {
   try {
     return loadSettings();
   } catch {
-    return { ...DEFAULT_CONFIG };
+    return createRuntimeConfig();
   }
 }
 
@@ -29,7 +29,7 @@ function safeLoadSettings() {
  * @returns {Object} Initialized game state
  */
 function createGameStateFromSettings(settings) {
-  const mergedSettings = { ...DEFAULT_CONFIG, ...settings };
+  const mergedSettings = createRuntimeConfig(settings);
   const validation = validateGameConfig(mergedSettings);
 
   if (!validation.valid) {
@@ -213,7 +213,8 @@ export function useGameState() {
       const requiresReinit =
         merged.rows !== prevSettings.rows ||
         merged.cols !== prevSettings.cols ||
-        merged.seed !== prevSettings.seed;
+        merged.seed !== prevSettings.seed ||
+        merged.pathfindingAlgorithm !== prevSettings.pathfindingAlgorithm;
 
       if (requiresReinit) {
         const freshState = createGameStateFromSettings(merged);
@@ -248,6 +249,51 @@ export function useGameState() {
     gameLoopRef.current?.step();
   }, []);
 
+  const handleExportSettings = useCallback(() => {
+    try {
+      const settingsData = exportSettings();
+      const blob = new Blob([settingsData], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'snake-ai-settings.json';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to export settings:', error);
+    }
+  }, []);
+
+  const handleImportSettings = useCallback((jsonString) => {
+    try {
+      const imported = importSettings(jsonString);
+      if (imported) {
+        setSettings(imported);
+        const freshState = createGameStateFromSettings(imported);
+        applyNewState(freshState);
+        return imported;
+      }
+      return null;
+    } catch (error) {
+      console.error('Failed to import settings:', error);
+      return null;
+    }
+  }, [applyNewState]);
+
+  const handleClearData = useCallback(() => {
+    try {
+      clearAllData();
+      const defaultSettings = { ...DEFAULT_CONFIG };
+      setSettings(defaultSettings);
+      const freshState = createGameStateFromSettings(defaultSettings);
+      applyNewState(freshState);
+    } catch (error) {
+      console.error('Failed to clear data:', error);
+    }
+  }, [applyNewState]);
+
   const toggleGame = useCallback(() => {
     if (!gameState) return;
 
@@ -270,5 +316,8 @@ export function useGameState() {
     stepGame,
     resetGameState,
     toggleGame,
+    exportSettings: handleExportSettings,
+    importSettings: handleImportSettings,
+    clearData: handleClearData,
   };
 }
