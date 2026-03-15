@@ -26,3 +26,4 @@ dist-ssr
 results
 coverage
 .cache
+*.png
