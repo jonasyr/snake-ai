@@ -109,7 +109,8 @@ export default function App() {
           </button>
         </div>
 
-        {activeTab === 'play' ? (
+        {/* Both tabs stay mounted so the canvas context is never destroyed on tab switch. */}
+        <div className={activeTab !== 'play' ? 'hidden' : ''}>
           <div className='grid lg:grid-cols-[1fr,400px] gap-8'>
             <div className='flex flex-col items-center'>
               <GameControls
@@ -144,9 +145,11 @@ export default function App() {
               onClearData={clearData}
             />
           </div>
-        ) : (
+        </div>
+
+        <div className={activeTab !== 'compare' ? 'hidden' : ''}>
           <ComparisonDashboard settings={settings} />
-        )}
+        </div>
       </main>
     </div>
   );

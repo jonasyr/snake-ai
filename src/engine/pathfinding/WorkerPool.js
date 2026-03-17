@@ -10,12 +10,15 @@ export class WorkerPool {
    * @param {number} [size=1] - Maximum number of concurrent worker tasks.
    */
   constructor(size = 1) {
-    this.maxWorkers = Math.max(1, Math.trunc(size) || 1);
+    // Allow 0 to explicitly disable worker creation (e.g. when already inside a worker).
+    this.maxWorkers = Math.max(0, Math.trunc(size));
     this.queue = [];
     this.pendingJobs = new Map();
     this.jobCounter = 0;
 
-    this.supportsWorkers = typeof Worker === 'function';
+    // Workers are only supported when the environment has Worker AND the pool
+    // size is non-zero. A size of 0 forces synchronous fallback execution.
+    this.supportsWorkers = typeof Worker === 'function' && this.maxWorkers > 0;
     this.workers = [];
 
     if (this.supportsWorkers) {

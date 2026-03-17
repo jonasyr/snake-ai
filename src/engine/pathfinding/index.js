@@ -15,10 +15,26 @@ export { WorkerPool } from './WorkerPool.js';
 export { ALGORITHMS } from './algorithmRegistry.js';
 
 let singletonManager = null;
+let defaultWorkerPoolSize = 2;
+
+/**
+ * Override the worker pool size used when the singleton manager is first created.
+ *
+ * Must be called before any pathfinding call that would trigger manager creation.
+ * Primarily intended for worker thread contexts (e.g. ComparisonWorker) where
+ * nested worker creation is undesirable — pass 0 to force synchronous execution.
+ *
+ * @param {number} size - Worker pool size (0 = synchronous fallback only).
+ */
+export function setDefaultWorkerPoolSize(size) {
+  defaultWorkerPoolSize = Math.max(0, Math.trunc(size));
+}
 
 function getOrCreateManager() {
   if (!singletonManager) {
-    singletonManager = createAlgorithmManager({ workerPoolSize: 2 });
+    singletonManager = createAlgorithmManager({
+      workerPoolSize: defaultWorkerPoolSize,
+    });
   }
   return singletonManager;
 }
@@ -49,7 +65,8 @@ export async function ensurePathfindingStrategy(initialState, options = {}) {
   const algorithm = options.algorithm || ALGORITHMS.HAMILTONIAN;
   const { name, strategy } = manager.getActiveStrategy();
 
-  const stateChanged = Boolean(initialState) && initialState !== manager.lastInitializedState;
+  const stateChanged =
+    Boolean(initialState) && initialState !== manager.lastInitializedState;
   const forceInitialize = Boolean(options.forceInitialize);
 
   if (!strategy || name !== algorithm) {

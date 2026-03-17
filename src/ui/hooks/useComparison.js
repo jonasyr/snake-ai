@@ -1,12 +1,10 @@
 // FILE: src/ui/hooks/useComparison.js
 /**
- * Hook that orchestrates sequential algorithm comparison runs and aggregates
- * results for display in the ComparisonDashboard.
+ * Hook that orchestrates algorithm comparison runs in a dedicated Web Worker,
+ * keeping the main thread free and making cancel instant.
  */
 
 import { useCallback, useRef, useState } from 'react';
-import { runGame } from '../../simulation/simulator.js';
-import { ALGORITHM_REGISTRY } from '../../engine/pathfinding/algorithmRegistry.js';
 import { DEFAULT_CONFIG } from '../../utils/constants.js';
 
 /**
@@ -26,17 +24,15 @@ import { DEFAULT_CONFIG } from '../../utils/constants.js';
  * @property {number} algorithmCount - Total number of algorithms in the comparison.
  * @property {string} currentAlgorithm - Identifier of the algorithm being run.
  * @property {string} currentName - Human-readable name of the algorithm being run.
- * @property {number} gameIndex - Zero-based index of the current game within the algorithm run.
+ * @property {number} gameIndex - Zero-based index of the current game (0-based completed count).
  * @property {number} gameCount - Total games per algorithm.
  */
 
 /**
- * Hook for running multi-algorithm comparisons sequentially with live progress.
+ * Hook for running multi-algorithm comparisons in a Web Worker.
  *
- * Each algorithm is run for the specified number of games using identical seeds
- * so results are directly comparable. The key metric is average board fill
- * (snake length / total cells at game end), which is meaningful for all
- * algorithm types — unlike a binary "completed the board" flag.
+ * All simulation work runs off the main thread so the UI stays responsive
+ * throughout. Cancellation is instant — it terminates the worker immediately.
  *
  * @returns {{
  *   results: ComparisonResult[],
@@ -50,10 +46,19 @@ export function useComparison() {
   const [results, setResults] = useState([]);
   const [isRunning, setIsRunning] = useState(false);
   const [progress, setProgress] = useState(null);
-  const cancelledRef = useRef(false);
+  const workerRef = useRef(null);
+
+  const cancelComparison = useCallback(() => {
+    if (workerRef.current) {
+      workerRef.current.terminate();
+      workerRef.current = null;
+    }
+    setIsRunning(false);
+    setProgress(null);
+  }, []);
 
   /**
-   * Start a comparison run across multiple algorithms.
+   * Start a comparison run across multiple algorithms in a background worker.
    *
    * @param {Object} params - Comparison parameters.
    * @param {string[]} params.algorithms - Algorithm identifiers to compare.
@@ -63,80 +68,73 @@ export function useComparison() {
    * @param {number} [params.seed] - Base seed (offset per game for uniqueness).
    */
   const startComparison = useCallback(
-    async ({ algorithms, games, rows, cols, seed }) => {
-      cancelledRef.current = false;
+    ({ algorithms, games, rows, cols, seed }) => {
+      // Terminate any in-progress run before starting a new one.
+      if (workerRef.current) {
+        workerRef.current.terminate();
+        workerRef.current = null;
+      }
+
       setIsRunning(true);
       setResults([]);
       setProgress(null);
 
-      const accumulated = [];
-      const baseSeed = seed ?? DEFAULT_CONFIG.seed;
-      const gridRows = rows ?? DEFAULT_CONFIG.rows;
-      const gridCols = cols ?? DEFAULT_CONFIG.cols;
-      const totalCells = gridRows * gridCols;
+      const worker = new Worker(
+        new URL('../../simulation/ComparisonWorker.js', import.meta.url),
+        { type: 'module' }
+      );
+      workerRef.current = worker;
 
-      for (let i = 0; i < algorithms.length; i += 1) {
-        if (cancelledRef.current) break;
+      worker.onmessage = event => {
+        const { type, ...data } = event.data;
 
-        const algorithm = algorithms[i];
-        const entry = ALGORITHM_REGISTRY[algorithm];
-        if (!entry?.strategyClass) continue;
-
-        const totals = { moves: 0, score: 0, durationMs: 0, length: 0 };
-
-        for (let g = 0; g < games; g += 1) {
-          if (cancelledRef.current) break;
-
-          setProgress({
-            algorithmIndex: i,
-            algorithmCount: algorithms.length,
-            currentAlgorithm: algorithm,
-            currentName: entry.name,
-            gameIndex: g,
-            gameCount: games,
-          });
-
-          const result = await runGame({
-            rows: gridRows,
-            cols: gridCols,
-            seed: baseSeed + g,
-            pathfindingAlgorithm: algorithm,
-            ...entry.defaultConfig,
-          });
-
-          totals.moves += result.moves ?? 0;
-          totals.score += result.score ?? 0;
-          totals.durationMs += result.durationMs ?? 0;
-          totals.length += result.stats?.length ?? 0;
-
-          // Yield to the browser so progress updates render between games.
-          await new Promise(resolve => setTimeout(resolve, 0));
+        switch (type) {
+          case 'progress':
+            setProgress({
+              algorithmIndex: data.algorithmIndex,
+              algorithmCount: data.algorithmCount,
+              currentAlgorithm: data.algorithm,
+              currentName: data.name,
+              gameIndex: data.completed,
+              gameCount: data.total,
+            });
+            break;
+          case 'result':
+            setResults(prev => [...prev, data.result]);
+            break;
+          case 'done':
+            setIsRunning(false);
+            setProgress(null);
+            workerRef.current = null;
+            break;
+          case 'error':
+            console.error('Comparison worker error:', data.message);
+            setIsRunning(false);
+            setProgress(null);
+            workerRef.current = null;
+            break;
+          default:
+            break;
         }
+      };
 
-        if (cancelledRef.current) break;
+      worker.onerror = error => {
+        console.error('Comparison worker crashed:', error);
+        setIsRunning(false);
+        setProgress(null);
+        workerRef.current = null;
+      };
 
-        accumulated.push({
-          algorithm,
-          name: entry.name,
-          games,
-          avgFill: games > 0 ? totals.length / games / totalCells : 0,
-          avgMoves: games > 0 ? totals.moves / games : 0,
-          avgScore: games > 0 ? totals.score / games : 0,
-          avgDurationMs: games > 0 ? totals.durationMs / games : 0,
-        });
-
-        setResults([...accumulated]);
-      }
-
-      setIsRunning(false);
-      setProgress(null);
+      worker.postMessage({
+        algorithms,
+        games,
+        rows: rows ?? DEFAULT_CONFIG.rows,
+        cols: cols ?? DEFAULT_CONFIG.cols,
+        seed: seed ?? DEFAULT_CONFIG.seed,
+      });
     },
     []
   );
-
-  const cancelComparison = useCallback(() => {
-    cancelledRef.current = true;
-  }, []);
 
   return { results, isRunning, progress, startComparison, cancelComparison };
 }
