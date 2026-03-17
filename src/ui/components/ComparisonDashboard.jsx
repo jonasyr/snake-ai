@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
-import { Play, Square, BarChart2 } from 'lucide-react';
+import { Play, Square, BarChart2, ChevronUp, ChevronDown } from 'lucide-react';
 import {
   ALGORITHMS,
   ALGORITHM_REGISTRY,
@@ -96,25 +96,70 @@ ProgressBar.propTypes = {
   }).isRequired,
 };
 
+const COLUMNS = [
+  { key: 'name', label: 'Algorithm', align: 'left', desc: false },
+  { key: 'avgFill', label: 'Avg Fill', align: 'right', desc: true },
+  { key: 'avgMoves', label: 'Avg Moves', align: 'right', desc: true },
+  { key: 'avgScore', label: 'Avg Score', align: 'right', desc: true },
+  { key: 'avgDurationMs', label: 'ms/game', align: 'right', desc: false },
+];
+
 /**
  * Results table rendered once at least one algorithm has finished.
+ * Columns are sortable by clicking the header.
  *
  * @param {Object} props
  * @param {import('../hooks/useComparison.js').ComparisonResult[]} props.results
  */
 function ResultsTable({ results }) {
-  const sorted = [...results].sort((a, b) => b.avgFill - a.avgFill);
+  const [sortKey, setSortKey] = useState('avgFill');
+  const [sortDesc, setSortDesc] = useState(true);
+
+  const handleSort = col => {
+    if (sortKey === col.key) {
+      setSortDesc(d => !d);
+    } else {
+      setSortKey(col.key);
+      setSortDesc(col.desc);
+    }
+  };
+
+  const sorted = [...results].sort((a, b) => {
+    const av = a[sortKey];
+    const bv = b[sortKey];
+    if (typeof av === 'string') {
+      return sortDesc ? bv.localeCompare(av) : av.localeCompare(bv);
+    }
+    return sortDesc ? bv - av : av - bv;
+  });
 
   return (
     <div className='overflow-x-auto'>
       <table className='w-full text-sm'>
         <thead>
-          <tr className='border-b border-white/10 text-gray-400 text-left'>
-            <th className='pb-2 pr-4'>Algorithm</th>
-            <th className='pb-2 pr-4 text-right'>Avg Fill</th>
-            <th className='pb-2 pr-4 text-right'>Avg Moves</th>
-            <th className='pb-2 pr-4 text-right'>Avg Score</th>
-            <th className='pb-2 text-right'>ms/game</th>
+          <tr className='border-b border-white/10 text-left'>
+            {COLUMNS.map(col => (
+              <th
+                key={col.key}
+                className={`pb-2 ${col.align === 'right' ? 'text-right' : ''} ${col.key !== 'avgDurationMs' ? 'pr-4' : ''}`}
+              >
+                <button
+                  onClick={() => handleSort(col)}
+                  className='inline-flex items-center gap-1 text-gray-400 hover:text-white transition-colors cursor-pointer'
+                >
+                  {col.label}
+                  {sortKey === col.key ? (
+                    sortDesc ? (
+                      <ChevronDown className='w-3 h-3' />
+                    ) : (
+                      <ChevronUp className='w-3 h-3' />
+                    )
+                  ) : (
+                    <span className='w-3 h-3 inline-block' />
+                  )}
+                </button>
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody className='divide-y divide-white/5'>
@@ -139,7 +184,7 @@ function ResultsTable({ results }) {
       </table>
       <p className='text-xs text-gray-500 mt-2'>
         {results[0]?.games} games per algorithm · avg % of board filled at game
-        end · sorted by fill
+        end
       </p>
     </div>
   );

@@ -42,6 +42,11 @@ self.onmessage = async event => {
 
       let lastProgressTime = 0;
 
+      // Cap ticks per game to prevent infinite loops (e.g. A* tail-chasing survival
+      // mode where the snake never dies but also never reaches the fruit).
+      // rows * cols * rows * cols comfortably covers the longest Hamiltonian cycle.
+      const maxTicks = rows * cols * rows * cols;
+
       const { summary } = await simulateGames({
         games,
         config: {
@@ -53,6 +58,7 @@ self.onmessage = async event => {
         },
         uniqueSeeds: true,
         includeRuns: false,
+        runOptions: { maxTicks },
         onProgress: ({ completed, total }) => {
           const now = Date.now();
           // Always send the final progress update; throttle intermediate ones.
