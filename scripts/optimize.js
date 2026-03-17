@@ -10,8 +10,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { Worker } from 'node:worker_threads';
-
 import { DEFAULT_CONFIG, createRuntimeConfig } from '../src/utils/constants.js';
 import { simulateGames } from '../src/simulation/simulator.js';
 

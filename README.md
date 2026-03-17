@@ -1,12 +1,12 @@
-# Snake AI - Hamiltonian Cycle with Smart Shortcuts
+# Snake AI - Multi-Algorithm Pathfinding Platform
 
 <div align="center">
 
 # Snake AI
 
-Modern Snake implementation driven by a Hamiltonian-cycle AI with safe shortcutting. The engine is
-fully deterministic, pure, and optimized for long-running simulations while the React UI provides
-rich analytics and controls.
+A multi-algorithm Snake AI platform built with React 19 and Vite. Six pathfinding algorithms compete
+to fill the grid, with live statistics, algorithm-specific visualizations, and a headless simulation
+CLI for benchmarking. The engine is fully deterministic and pure-functional.
 
 <img width="1674" height="1237" alt="Snake AI gameplay" src="https://github.com/user-attachments/assets/c22d1890-11a2-41ff-a0a9-a841c7c16d43" />
 
@@ -15,39 +15,68 @@ rich analytics and controls.
 ## Table of Contents
 
 1. [Features](#features)
-2. [Architecture Overview](#architecture-overview)
-3. [Getting Started](#getting-started)
-4. [Available Scripts](#available-scripts)
-5. [Git Workflow & Quality Gates](#git-workflow--quality-gates)
-6. [Configuration & Controls](#configuration--controls)
-7. [Simulation CLI](#simulation-cli)
-8. [Testing & Quality](#testing--quality)
-9. [Project Structure](#project-structure)
-10. [Technology Stack](#technology-stack)
+2. [Algorithms](#algorithms)
+3. [Architecture Overview](#architecture-overview)
+4. [Getting Started](#getting-started)
+5. [Available Scripts](#available-scripts)
+6. [Git Workflow & Quality Gates](#git-workflow--quality-gates)
+7. [Configuration & Controls](#configuration--controls)
+8. [Simulation CLI](#simulation-cli)
+9. [Testing & Quality](#testing--quality)
+10. [Project Structure](#project-structure)
+11. [Technology Stack](#technology-stack)
 
 ## Features
 
-- **Autonomous AI Snake** – Follows a Hamiltonian cycle and uses heuristics to take safe shortcuts.
+- **6 AI algorithms** – Switch between Hamiltonian, A\*, BFS, Dijkstra, Greedy Best-First, and
+  Hamiltonian + Shortcuts from the settings panel.
+- **Algorithm visualizer plugin system** – Each algorithm family renders its own canvas overlay
+  (Hamiltonian cycle path, shortcut indicators, planned graph path).
 - **Deterministic engine** – Seeded RNG produces reproducible runs for debugging and benchmarking.
-- **High-performance rendering** – Canvas renderer employs incremental updates and cached layers.
-- **Rich telemetry** – Live statistics such as fill percentage, head distances, and efficiency.
-- **User customization** – Toggle visualization layers, tweak speed, and tune shortcut safety
-  buffers.
-- **Resilient UX** – Keyboard shortcuts, responsive layout, and defensive settings validation.
+- **High-performance rendering** – Canvas renderer employs incremental updates and cached static
+  layers.
+- **Rich telemetry** – Live statistics: fill percentage, head distances, efficiency, moves, and
+  per-algorithm performance badges.
+- **User customization** – Toggle visualization layers, tweak speed, tune shortcut safety buffers,
+  and choose grid size.
+
+## Algorithms
+
+| Algorithm               | Completion | Speed     | Notes                                                     |
+| ----------------------- | ---------- | --------- | --------------------------------------------------------- |
+| Hamiltonian Cycle       | 100%       | Slow      | Guaranteed safe — visits every cell in order              |
+| Hamiltonian + Shortcuts | 100%       | Medium    | Takes safe shortcuts when the tail is far enough          |
+| A\* Pathfinding         | ~60%       | Fast      | Optimal shortest path with tail-reachability safety check |
+| Dijkstra's Algorithm    | ~55%       | Medium    | Uniform-cost search — optimal path without a heuristic    |
+| Breadth-First Search    | ~55%       | Medium    | Explores all paths equally until fruit is found           |
+| Greedy Best-First       | ~20%       | Very Fast | Always moves toward fruit — highest risk, highest speed   |
+
+Select any algorithm from the **Settings → AI Algorithm** dropdown. The info card shows pros, cons,
+completion rate, speed, and difficulty for the selected algorithm.
 
 ## Architecture Overview
 
-- **Engine (`src/engine`)** – Pure functional logic for state transitions, Hamiltonian traversal,
-  shortcuts, and RNG.
-- **Game loop (`src/game`)** – Frame-locked loop coordinating ticks and handling deterministic
-  scheduling.
-- **UI (`src/ui`)** – React components and hooks for visualization, analytics, and configuration.
+- **Engine (`src/engine`)** – Pure functional logic: state transitions, Hamiltonian generation,
+  pathfinding strategies (Strategy pattern), seeded RNG, and object pools.
+- **Game loop (`src/game`)** – Frame-locked loop coordinating ticks and deterministic scheduling.
+- **UI (`src/ui`)** – React components, canvas hooks with visualizer plugin system, and settings
+  panel.
 - **Simulation (`src/simulation`)** – Headless runner for large-scale experiments and regression
   testing.
-- **Utilities (`src/utils`)** – Shared math, guards, constants, and data-structure helpers.
+- **Utilities (`src/utils`)** – Shared math, guards, constants, `CircularQueue`, and data helpers.
 
 The engine layer is intentionally side-effect free. All browser integration lives inside hooks and
 loop helpers to keep the core logic portable and easily testable.
+
+### Visualizer Plugin System
+
+Each algorithm family has a dedicated `BaseVisualizer` subclass in `src/ui/visualizers/`:
+
+- `HamiltonianVisualizer` – Renders the Hamiltonian cycle and shortcut indicators.
+- `GraphVisualizer` – Renders the planned path for A\*, BFS, Dijkstra, and Greedy.
+
+Visualizers are registered in `src/ui/visualizers/index.js` and loaded automatically based on the
+active algorithm.
 
 ## Getting Started
 
@@ -103,11 +132,13 @@ npm run analyze     # Analyze simulation results
 
 ## Configuration & Controls
 
-- **Grid size** – Choose from several presets in the settings panel. The engine enforces at least
-  one even dimension to maintain a Hamiltonian cycle.
+- **Algorithm selection** – Choose from 6 algorithms via the settings panel dropdown. The info card
+  shows description, pros/cons, completion rate, speed, and difficulty.
+- **Grid size** – Choose from several presets. The engine enforces at least one even dimension for
+  the Hamiltonian cycle.
 - **Random seed** – Provide a seed for deterministic gameplay or generate a random one from the UI.
-- **Shortcut tuning** – Enable/disable shortcuts and adjust the safety buffer that guards against
-  tail collisions.
+- **Shortcut tuning** – When using Hamiltonian + Shortcuts, adjust safety buffer and late-game lock
+  thresholds.
 - **Speed slider** – Adjust tick rate directly from the control bar for rapid or slow-motion
   analysis.
 
@@ -119,23 +150,28 @@ engine.
 Run large batches of AI-only games without a browser to gather aggregate statistics:
 
 ```bash
-# Run 1,000 games on a 20x20 grid and print a summary with sample runs
-npm run simulate -- --games 1000 --rows 20 --cols 20 --details --sample 5
+# Run 1,000 games with A* on a 20x20 grid
+npm run simulate -- --games 1000 --rows 20 --cols 20 --algorithm astar --details
 
-# Output the raw JSON payload for downstream analysis
+# Compare algorithms: run 500 games each with BFS and Dijkstra
+npm run simulate -- --games 500 --algorithm bfs
+npm run simulate -- --games 500 --algorithm dijkstra
+
+# Output raw JSON for downstream analysis
 npm run simulate -- --games 500 --rows 16 --cols 16 --json
 ```
 
 Common flags:
 
-| Flag                        | Description                                                |
-| --------------------------- | ---------------------------------------------------------- |
-| `--games <n>`               | Number of games to run (default `1`).                      |
-| `--rows <n>` / `--cols <n>` | Grid dimensions used for every run.                        |
-| `--seed <n>`                | Base seed. Combine with `--uniqueSeeds=false` to reuse it. |
-| `--shortcutsEnabled=false`  | Disable shortcut logic for comparison baselines.           |
-| `--details`                 | Include a console table of per-game results.               |
-| `--json`                    | Emit machine-readable JSON including per-run data.         |
+| Flag                        | Description                                                                                     |
+| --------------------------- | ----------------------------------------------------------------------------------------------- |
+| `--games <n>`               | Number of games to run (default `1`).                                                           |
+| `--rows <n>` / `--cols <n>` | Grid dimensions used for every run.                                                             |
+| `--algorithm <name>`        | Algorithm to use: `hamiltonian`, `hamiltonian-shortcuts`, `astar`, `dijkstra`, `bfs`, `greedy`. |
+| `--seed <n>`                | Base seed. Combine with `--uniqueSeeds=false` to reuse it.                                      |
+| `--shortcutsEnabled=false`  | Disable shortcut logic for Hamiltonian baseline.                                                |
+| `--details`                 | Include a console table of per-game results.                                                    |
+| `--json`                    | Emit machine-readable JSON including per-run data.                                              |
 
 ### Shortcut parameter sweep
 
@@ -166,7 +202,7 @@ printed to the console while the sweep is in progress.
 **Automated via Git Hooks** - Quality checks run automatically on commit/push:
 
 - **Unit and integration tests** - Located under `src/tests`, covering engine logic, game loop
-  behavior, and simulations
+  behavior, simulations, and all 6 pathfinding strategies (54 tests)
 - **ESLint** - Enforces consistent code style and best practices
 - **Prettier** - Automatic code formatting
 - **Build verification** - Ensures production builds work
@@ -184,11 +220,20 @@ npm run quality:fix  # Fix all auto-fixable issues
 
 ```txt
 src/
-├── engine/        # Pure game-state transitions and Hamiltonian helpers
+├── engine/
+│   ├── pathfinding/
+│   │   ├── strategies/    # HamiltonianStrategy, AStarStrategy, BFSStrategy,
+│   │   │                  # DijkstraStrategy, GreedyStrategy
+│   │   ├── worker/        # Off-thread pathfinding via WorkerPool
+│   │   └── algorithmRegistry.js  # Single source of truth for all algorithms
+│   └── ...                # snake, hamiltonian, collision, fruit, rng, grid
 ├── game/          # Game loop orchestration and persistent settings
-├── simulation/    # Headless batch runner
-├── ui/            # React components, canvas hook, and statistics panels
-├── utils/         # Shared constants, guards, math utilities, collections
+├── simulation/    # Headless batch runner and parameter sweep
+├── ui/
+│   ├── components/        # React UI components
+│   ├── hooks/             # useGameState, useCanvas
+│   └── visualizers/       # BaseVisualizer, HamiltonianVisualizer, GraphVisualizer
+├── utils/         # Shared constants, guards, math, CircularQueue
 └── tests/         # Vitest suites (unit, integration, simulation)
 ```
 
@@ -202,5 +247,5 @@ src/
 
 ---
 
-Enjoy exploring the Hamiltonian-powered Snake AI! Contributions, ideas, and performance improvements
-are always welcome.
+Enjoy exploring the Snake AI algorithms! Contributions, ideas, and performance improvements are
+always welcome.

@@ -142,24 +142,6 @@ export const ALGORITHM_REGISTRY = Object.freeze({
 });
 
 /**
- * @deprecated Use ALGORITHM_REGISTRY[algorithm] instead.
- * Kept for backward compatibility.
- */
-export const ALGORITHM_INFO = Object.fromEntries(
-  Object.entries(ALGORITHM_REGISTRY).map(([key, entry]) => [
-    key,
-    {
-      name: entry.name,
-      description: entry.description,
-      pros: entry.pros,
-      cons: entry.cons,
-      requiresCycle: entry.requiresCycle,
-      configOptions: entry.configOptions,
-    },
-  ])
-);
-
-/**
  * Create a manager pre-populated with all available strategies.
  *
  * @param {Object} [options] - Manager configuration.

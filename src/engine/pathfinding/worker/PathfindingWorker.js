@@ -7,6 +7,8 @@ import { StandardGameState } from '../GameStateAdapter.js';
 import { HamiltonianStrategy } from '../strategies/HamiltonianStrategy.js';
 import { AStarStrategy } from '../strategies/AStarStrategy.js';
 import { BFSStrategy } from '../strategies/BFSStrategy.js';
+import { DijkstraStrategy } from '../strategies/DijkstraStrategy.js';
+import { GreedyStrategy } from '../strategies/GreedyStrategy.js';
 
 /**
  * Mapping of strategy identifiers to their concrete implementations.
@@ -18,6 +20,8 @@ const STRATEGY_REGISTRY = {
   'hamiltonian-shortcuts': HamiltonianStrategy,
   astar: AStarStrategy,
   bfs: BFSStrategy,
+  dijkstra: DijkstraStrategy,
+  greedy: GreedyStrategy,
 };
 
 /**
@@ -39,7 +43,9 @@ async function executePlan(payload) {
 
   const StrategyClass = STRATEGY_REGISTRY[strategy.key];
   if (!StrategyClass) {
-    throw new Error(`Unknown strategy requested for worker execution: ${strategy.key}`);
+    throw new Error(
+      `Unknown strategy requested for worker execution: ${strategy.key}`
+    );
   }
 
   const instance = new StrategyClass(strategy.config ?? {});

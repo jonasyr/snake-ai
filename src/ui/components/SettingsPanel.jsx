@@ -8,7 +8,6 @@ import PropTypes from 'prop-types';
 import { Download, Upload, RotateCcw, Info } from 'lucide-react';
 import {
   ALGORITHMS,
-  ALGORITHM_INFO,
   ALGORITHM_REGISTRY,
   getAlgorithmDefaultConfig,
 } from '../../engine/pathfinding/algorithmRegistry.js';
@@ -176,8 +175,7 @@ const SettingsPanel = ({
 
   const currentAlgorithm =
     settings.pathfindingAlgorithm || ALGORITHMS.HAMILTONIAN_SHORTCUTS;
-  const algorithmInfo = ALGORITHM_INFO[currentAlgorithm];
-  const algorithmMeta = ALGORITHM_REGISTRY[currentAlgorithm];
+  const algorithmInfo = ALGORITHM_REGISTRY[currentAlgorithm];
 
   /**
    * Update algorithm selection, reinitializing the pathfinding manager and applying defaults.
@@ -317,13 +315,13 @@ const SettingsPanel = ({
                 value={ALGORITHMS.HAMILTONIAN}
                 className='bg-gray-800 text-white'
               >
-                {ALGORITHM_INFO[ALGORITHMS.HAMILTONIAN].name}
+                {ALGORITHM_REGISTRY[ALGORITHMS.HAMILTONIAN].name}
               </option>
               <option
                 value={ALGORITHMS.HAMILTONIAN_SHORTCUTS}
                 className='bg-gray-800 text-white'
               >
-                {ALGORITHM_INFO[ALGORITHMS.HAMILTONIAN_SHORTCUTS].name}
+                {ALGORITHM_REGISTRY[ALGORITHMS.HAMILTONIAN_SHORTCUTS].name}
               </option>
             </optgroup>
             <optgroup label='Graph Search' className='bg-gray-800 text-white'>
@@ -331,22 +329,22 @@ const SettingsPanel = ({
                 value={ALGORITHMS.ASTAR}
                 className='bg-gray-800 text-white'
               >
-                {ALGORITHM_INFO[ALGORITHMS.ASTAR].name}
+                {ALGORITHM_REGISTRY[ALGORITHMS.ASTAR].name}
               </option>
               <option
                 value={ALGORITHMS.DIJKSTRA}
                 className='bg-gray-800 text-white'
               >
-                {ALGORITHM_INFO[ALGORITHMS.DIJKSTRA].name}
+                {ALGORITHM_REGISTRY[ALGORITHMS.DIJKSTRA].name}
               </option>
               <option value={ALGORITHMS.BFS} className='bg-gray-800 text-white'>
-                {ALGORITHM_INFO[ALGORITHMS.BFS].name}
+                {ALGORITHM_REGISTRY[ALGORITHMS.BFS].name}
               </option>
               <option
                 value={ALGORITHMS.GREEDY}
                 className='bg-gray-800 text-white'
               >
-                {ALGORITHM_INFO[ALGORITHMS.GREEDY].name}
+                {ALGORITHM_REGISTRY[ALGORITHMS.GREEDY].name}
               </option>
             </optgroup>
             <optgroup label='Learning-Based' className='bg-gray-800 text-white'>
@@ -387,31 +385,31 @@ const SettingsPanel = ({
                   </ul>
                 </div>
               </div>
-              {algorithmMeta &&
-                (algorithmMeta.completionRate != null ||
-                  algorithmMeta.speed != null) && (
+              {algorithmInfo &&
+                (algorithmInfo.completionRate != null ||
+                  algorithmInfo.speed != null) && (
                   <div className='flex flex-wrap gap-2 mt-3 pt-2 border-t border-white/10'>
-                    {algorithmMeta.completionRate != null && (
+                    {algorithmInfo.completionRate != null && (
                       <span className='px-2 py-0.5 rounded-full text-xs bg-green-500/15 text-green-300 border border-green-500/30'>
-                        ✓ {algorithmMeta.completionRate}% completion
+                        ✓ {algorithmInfo.completionRate}% completion
                       </span>
                     )}
-                    {algorithmMeta.speed != null && (
+                    {algorithmInfo.speed != null && (
                       <span className='px-2 py-0.5 rounded-full text-xs bg-blue-500/15 text-blue-300 border border-blue-500/30'>
-                        ⚡ {algorithmMeta.speed}
+                        ⚡ {algorithmInfo.speed}
                       </span>
                     )}
-                    {algorithmMeta.difficulty != null && (
+                    {algorithmInfo.difficulty != null && (
                       <span
                         className={`px-2 py-0.5 rounded-full text-xs border ${
-                          algorithmMeta.difficulty === 'Easy'
+                          algorithmInfo.difficulty === 'Easy'
                             ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-                            : algorithmMeta.difficulty === 'Medium'
+                            : algorithmInfo.difficulty === 'Medium'
                               ? 'bg-yellow-500/15 text-yellow-300 border-yellow-500/30'
                               : 'bg-red-500/15 text-red-300 border-red-500/30'
                         }`}
                       >
-                        {algorithmMeta.difficulty}
+                        {algorithmInfo.difficulty}
                       </span>
                     )}
                   </div>
