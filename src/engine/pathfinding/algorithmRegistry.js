@@ -41,7 +41,7 @@ export const ALGORITHMS = {
 export const ALGORITHM_REGISTRY = Object.freeze({
   [ALGORITHMS.HAMILTONIAN]: {
     strategyClass: HamiltonianStrategy,
-    defaultConfig: Object.freeze({}),
+    defaultConfig: Object.freeze({ shortcutsEnabled: false }),
     name: 'Hamiltonian Cycle',
     description: 'Follows a pre-computed path that visits every cell',
     pros: ['Guaranteed to never lose', 'Simple and deterministic'],
